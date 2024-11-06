@@ -28,6 +28,7 @@ type Table struct {
 	Allies          map[*Party][]*Party
 	Tiles           []*Tile
 	DefaultStrategy *Strategy
+	PossibleWays    []string // eg. "N", "W", "S", "E"
 }
 
 func (t *Table) TurnOver() {
@@ -92,7 +93,7 @@ type Character struct {
 	Moves       []Way
 	AttackDirs  [][]string
 	AttackPower int
-	Skills      []Skill
+	Skills      map[string]Skill
 	HP          int
 }
 
@@ -170,74 +171,18 @@ func (c *Character) AttackableTiles() []*Tile {
 	return tiles
 }
 
-type Tile struct {
-	Base     *TileBase
-	Ways     []*Way
-	Occupier *Character
+type Skill struct {
+	Actor        *Character
+	AffectOrigin *Tile
+	Affects      []*Tile
 }
 
-func (t *Tile) Way(name string) *Way {
-	for _, w := range t.Ways {
-		if w.Name == name {
-			return w
-		}
-	}
-	return nil
+func (s *Skill) Origin() *Tile {
+	return Actor.At()
 }
 
-type Way struct {
-	Name string
-	From *Tile
-	To   *Tile
-	Cost int
-}
-
-type TileGenerator2D struct {
-	Size  Pos2D
-	Bases []*TileBase
-}
-
-func (g *TileGenerator2D) Generate() []*Tile {
-	xsize := g.Size[0]
-	ysize := g.Size[1]
-	tiles := make([]*Tile, len(g.Bases))
-	emptyBase := &TileBase{}
-	for i := range g.Base {
-		tiles[i] = &Tile{}
-	}
-	for x := 0; x < xsize; x++ {
-		for y := 0; y < ysize; y++ {
-			idx := x*ysize + y
-			t := g.Tiles[idx]
-			if len(g.Bases) < i {
-				t.Base = g.Bases[i]
-			} else {
-				t.Base = emptyBase
-			}
-			t.ways = make([]*Way, 0)
-			if xsize != 0 {
-				if x != 0 {
-					t.Ways = append(t.Ways, &Way{Name: "W", From: t, To: tiles[idx-1], Cost: 1})
-				}
-				if x != xsize-1 {
-					t.Ways = append(t.Ways, &Way{Name: "E", From: t, To: tiles[idx+1], Cost: 1})
-				}
-			}
-			if ysize != 0 {
-				if y != 0 {
-					t.Ways = append(t.Ways, &Way{Name: "N", From: t, To: tiles[idx-xsize], Cost: 1})
-				}
-				if y != ysize-1 {
-					t.Ways = append(t.Ways, &Way{Name: "S", From: t, To: tiles[idx+xsize], Cost: 1})
-				}
-			}
-			g.Tiles[i] = t
-		}
-	}
-}
-
-type TileBase struct {
-	Image *Image
+func (s *Skill) Affects() []*Tile {
+	o := s.Origin()
 }
 
 type Interactable struct {
