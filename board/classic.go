@@ -37,18 +37,3 @@ func ClassicBoard(width, height int) *tiled.Board {
 		}
 	}
 }
-
-var ClassicAxisArea = []tiled.Pos{{0, 1}, {1, 0}, {0, -1}, {-1, 0}}
-
-var ClassicAxis2Area = []tiled.Pos{{0, 2}, {2, 0}, {0, -2}, {-2, 0}}
-
-var ClassicDiagArea = []tiled.Pos{{1, 1}, {1, -1}, {-1, -1}, {-1, 1}}
-
-var ClassicDiag2Area = []tiled.Pos{{2, 2}, {2, -2}, {-2, -2}, {-2, 2}}
-
-var ClassicAroundArea = []tiled.Pos{{0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1}, {-1, -1}, {-1, 0}, {-1, 1}}
-
-var ClassicAround2Area = []tiled.Pos{
-	{0, 2}, {1, 2}, {2, 2}, {2, 1}, {2, 0}, {2, -1}, {2, -2}, {1, -2},
-	{0, -2}, {-1, -2}, {-2, -2}, {-2, -1}, {-2, 0}, {-2, 1}, {-2, 2}, {-1, 2},
-}

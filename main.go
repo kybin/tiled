@@ -87,6 +87,7 @@ func (p *Party) AutoAction() {
 type Character struct {
 	States      map[string]bool
 	Party       *Party
+	Class       *Class
 	Origin      *Tile
 	TotalPoints int
 	SpentPoints int
@@ -171,18 +172,15 @@ func (c *Character) AttackableTiles() []*Tile {
 	return tiles
 }
 
-type Skill struct {
-	Actor        *Character
-	AffectOrigin *Tile
-	Affects      []*Tile
+type Class struct {
+	Skills []Skill
 }
 
-func (s *Skill) Origin() *Tile {
-	return Actor.At()
-}
-
-func (s *Skill) Affects() []*Tile {
-	o := s.Origin()
+type Skill interface {
+	Origin() *Tile
+	SelectableArea() Area
+	CastArea() Area
+	Cast()
 }
 
 type Interactable struct {
