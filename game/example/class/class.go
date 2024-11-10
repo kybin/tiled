@@ -97,7 +97,30 @@ func (a *SpearAttack) CastArea(sel tiled.Pos) tiled.Area {
 	return tiled.CreateArea([]tiled.Pos{sel})
 }
 
-func (a *SpearAttack) Cast(tiles []*tiled.Tile) {
+func (a *SpearAttack) Cast(sel tiled.Pos) []tiled.CharacterEvent {
+	area := tiled.CreateArea([]tiled.Pos{sel})
+	tiles := make([]*tiled.Tile, 0, len(area))
+	for _, a := range area {
+		t := tiled.Board.Tile(a)
+		tiles = append(tiles, t)
+	}
+	events := []make(tiled.CharacterEvent, 0)
+	skillFacing := sel.Facing()
+	if a.Caster.Facing != skillFacing {
+		ev := tiled.CharacterEvent{
+			Character: a.Caster,
+			On:        "facing",
+			Effect: func() {
+				a.Caster.Facing = skillFacing
+			},
+		}
+		events = append(events, ev)
+	}
+	ev := tiled.CharacterEvent{
+		Character: a.Caster,
+		On:        "attack",
+	}
+	events = append(events, ev)
 	for _, t := range tiles {
 		ch := t.Occupier
 		if ch.Party.IsAlly(a.Caster.Party) {
@@ -107,6 +130,15 @@ func (a *SpearAttack) Cast(tiles []*tiled.Tile) {
 		if tile.Distance(ch.At(), a.Caster.At()) > 1 {
 			k := 1
 		}
-		ch.HP -= a.Caster.HP * a.Caster.AttackPower * k
+		effect := func() {
+			ch.HP -= a.Caster.HP * a.Caster.AttackPower * k
+		}
+		ev := tiled.CharacterEvent{
+			Character: ch,
+			On:        "attacked",
+			Effect:    effect,
+		}
+		events = append(events, ev)
 	}
+	return events
 }
