@@ -1,5 +1,7 @@
 package main
 
+import "time"
+
 type InputHandler interface {
 	HandleInput() error
 }
@@ -10,7 +12,7 @@ type ScreenDrawer interface {
 
 type Game struct {
 	Players []Player
-	Table   *Table
+	World   *World
 }
 
 func (g *Game) Save() error {
@@ -21,48 +23,60 @@ func (g *Game) Load() error {
 	return nil
 }
 
-type Table struct {
-	Parties         []*Party
-	CurrentParty    *Party
-	WaitedParties   []*Party
-	Allies          map[*Party][]*Party
-	Tiles           []*Tile
-	DefaultStrategy *Strategy
-	PossibleWays    []string // eg. "N", "W", "S", "E"
+type Stage interface {
+	Win(*Party) bool
+	Defeated(*Party) bool
+	NoMorePlayer() bool
+	Turn() int
+	MaxTurns() int
 }
 
-func (t *Table) TurnOver() {
-	if len(t.WaitedParties) != 0 {
-		t.CurrentParty = t.WaitedParties[0]
-		t.WaitedParty = t.WaitedParty[1:]
+type World struct {
+	// Time will only passed on playing.
+	// eg. Opening an UI will stop the world.
+	Time time.Time
+	// Board have Tiles with it's style, axis and sizes defined.
+	Board *Board
+	// Parties are all parties in the game.
+	Parties []*Party
+	// ActiveParty is the party currently acting, either by user or AI.
+	ActiveParty *Party
+	// WaitedParties will act before the next party of ActiveParty.
+	WaitedParties []*Party
+	// Allies are ally parties to Party.
+	Allies map[*Party][]*Party
+	// DefaultStrategy is the default AI strategy for NPC.
+	// It should be defined so it can be used when an NPC doesn't have distinctive strategy.
+	DefaultStrategy *Strategy
+}
+
+func (w *World) TurnOver() {
+	if len(w.WaitedParties) != 0 {
+		w.ActiveParty = w.WaitedParties[0]
+		w.WaitedParty = w.WaitedParty[1:]
 	} else {
 		nextPartyIdx := -1
 		for i, p := range Parties {
-			if p == t.CurrentParty {
+			if p == w.ActiveParty {
 				nextPartyIdx = i + 1
 				break
 			}
 		}
-		if nextPartyIdx == len(t.Parties) {
+		if nextPartyIdx == len(w.Parties) {
 			nextPartyIdx = 0
 		}
-		t.CurrentParty = t.Parties[nextPartyIdx]
-	}
-	for _, c := range t.CurrentParty {
-		c.Origin = c.Tile()
-		c.Moves = nil
-		c.SpentPoints = 0
+		w.ActiveParty = w.Parties[nextPartyIdx]
 	}
 }
 
 type Party struct {
-	Table      *Table
+	World      *World
 	Characters []*Character
 	Strategy   *Strategy
 }
 
 func (p *Party) IsAlly(q *Party) bool {
-	allies := p.Table.Allies[p]
+	allies := p.World.Allies[p]
 	for _, a := range allies {
 		if q == a {
 			return true
@@ -74,7 +88,7 @@ func (p *Party) IsAlly(q *Party) bool {
 func (p *Party) AutoAction() {
 	stg := p.Strategy
 	if stg == nil {
-		stg = p.Table.DefaultStrategy
+		stg = p.World.DefaultStrategy
 	}
 	if stg == nil {
 		panic("default strategy should not be nil")
@@ -170,6 +184,12 @@ func (c *Character) AttackableTiles() []*Tile {
 		tiles = append(tiles, w)
 	}
 	return tiles
+}
+
+func (c *Character) Done() {
+	c.Origin = c.Tile()
+	c.Moves = nil
+	c.SpentPoints = 0
 }
 
 type Class struct {

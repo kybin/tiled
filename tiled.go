@@ -3,13 +3,14 @@ package tiled
 import "sort"
 
 type Pos [2]int
+type Dir [2]int
 
 type Board struct {
-	Width   int
-	Height  int
-	Tiles   []*Tile
-	AllWays []string
-	Tile    map[Pos]*Tile
+	Width  int
+	Height int
+	Axis   []Dir
+	Tiles  []*Tile
+	Tile   map[Pos]*Tile
 }
 
 type Tile struct {
@@ -35,35 +36,38 @@ func (t *Tile) Way(name string) *Way {
 	return nil
 }
 
+// Area is composed with Poses in tiled world.
+// Adding an existing Pos do nothing to the area.
+// Removing a non-existing Pos do nothing as well.
 type Area struct {
-	Pos map[Pos]bool
+	pos map[Pos]bool
 }
 
 func CreateArea(poses []Pos) Area {
 	a := &Area{}
 	for _, p := range poses {
-		a.Pos[m] = true
+		a.pos[m] = true
 	}
 	return a
 }
 
 func (a Area) Add(poses []Pos) Area {
 	for _, p := range poses {
-		a.Pos[m] = true
+		a.pos[m] = true
 	}
 	return a
 }
 
 func (a Area) Sub(poses []Pos) Area {
 	for _, p := range poses {
-		delete(a.Pos, p)
+		delete(a.pos, p)
 	}
 	return a
 }
 
 func (a Area) Poses() []Pos {
-	poses := make([]Pos, 0, len(a.Pos))
-	for _, p := range a.Pos {
+	poses := make([]Pos, 0, len(a.pos))
+	for _, p := range a.pos {
 		poses = append(poses, p)
 	}
 	sort.Slice(poses, func(i, j int) bool {
