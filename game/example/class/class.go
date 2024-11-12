@@ -10,7 +10,7 @@ type Knockback struct {
 }
 
 func (a *Knockback) Origin(cursor *tiled.Tile) tiled.Tile {
-	return a.Caster.At()
+	return a.Caster.Tile()
 }
 
 func (a *Knockback) SelectableArea() tiled.Area {
@@ -27,16 +27,16 @@ func (a *Knockback) Cast(tiles []*tiled.Tile) {
 		if ch.Party.IsAlly(a.Caster.Party) {
 			continue
 		}
-		if ch.At()[0] < a.Caster.At()[0] {
+		if ch.Tile()[0] < a.Caster.Tile()[0] {
 			ch.Pos[0] = ch.Pos[0] - 1
 		}
-		if ch.At()[0] > a.Caster.At()[0] {
+		if ch.Tile()[0] > a.Caster.Tile()[0] {
 			ch.Pos[0] = ch.Pos[0] + 1
 		}
-		if ch.At()[1] < a.Caster.At()[1] {
+		if ch.Tile()[1] < a.Caster.Tile()[1] {
 			ch.Pos[1] = ch.Pos[1] - 1
 		}
-		if ch.At()[1] > a.Caster.At()[1] {
+		if ch.Tile()[1] > a.Caster.Tile()[1] {
 			ch.Pos[1] = ch.Pos[1] + 1
 		}
 		ch.HP -= a.Caster.HP * a.Caster.AttackPower / 3
@@ -54,7 +54,7 @@ type SwordAttack struct {
 }
 
 func (a *SwordAttack) Origin(cursor *tiled.Tile) tiled.Tile {
-	return a.Caster.At()
+	return a.Caster.Tile()
 }
 
 func (a *SwordAttack) SelectableArea() tiled.Area {
@@ -86,7 +86,7 @@ type SpearAttack struct {
 }
 
 func (a *SpearAttack) Origin(cursor *tiled.Tile) tiled.Tile {
-	return a.Caster.At()
+	return a.Caster.Tile()
 }
 
 func (a *SpearAttack) SelectableArea() tiled.Area {
@@ -127,7 +127,7 @@ func (a *SpearAttack) Cast(sel tiled.Pos) []tiled.CharacterEvent {
 			continue
 		}
 		k := 0.5
-		if tile.Distance(ch.At(), a.Caster.At()) > 1 {
+		if tile.Distance(ch.Tile(), a.Caster.Tile()) > 1 {
 			k := 1
 		}
 		effect := func() {

@@ -49,7 +49,7 @@ func (t *Table) TurnOver() {
 		t.CurrentParty = t.Parties[nextPartyIdx]
 	}
 	for _, c := range t.CurrentParty {
-		c.Origin = c.At()
+		c.Origin = c.Tile()
 		c.Moves = nil
 		c.SpentPoints = 0
 	}
@@ -98,7 +98,7 @@ type Character struct {
 	HP          int
 }
 
-func (c *Charactor) At() *Tile {
+func (c *Charactor) Tile() *Tile {
 	if len(w.Moves) == 0 {
 		return c.Origin
 	}
@@ -106,17 +106,17 @@ func (c *Charactor) At() *Tile {
 }
 
 func (c *Character) Step(w Way) bool {
-	if w.From != c.At() {
+	if w.From != c.Tile() {
 		return false
 	}
-	c.At().Occupier = nil
+	c.Tile().Occupier = nil
 	c.Moves = append(c.Moves, w)
-	c.At().Occupier = c
+	c.Tile().Occupier = c
 	return true
 }
 
 func (c *Character) MoveTo(t *Tile) {
-	path := findPath(c.At(), t)
+	path := findPath(c.Tile(), t)
 	if path == nil {
 		return false
 	}
@@ -159,7 +159,7 @@ func (c *Character) AttackableTiles() []*Tile {
 	// + +
 	tiles := make([]*Tile, 0)
 	for _, dirs := range c.AttackDirs {
-		at := c.At()
+		at := c.Tile()
 		for _, d := range dirs {
 			w := at.Way(d)
 			if w == nil {
