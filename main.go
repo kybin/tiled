@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"image"
+	"time"
+)
 
 type InputHandler interface {
 	HandleInput() error
@@ -11,8 +14,10 @@ type ScreenDrawer interface {
 }
 
 type Game struct {
-	Players []Player
-	World   *World
+	Players        []Player
+	World          *World
+	EquipmentParts []string
+	ItemTypes      []string
 }
 
 func (g *Game) Save() error {
@@ -23,11 +28,13 @@ func (g *Game) Load() error {
 	return nil
 }
 
+type Field struct{}
+
 type Stage interface {
 	Win(*Party) bool
 	Defeated(*Party) bool
 	NoMorePlayer() bool
-	Turn() int
+	CurrentTurn() int
 	MaxTurns() int
 }
 
@@ -35,6 +42,8 @@ type World struct {
 	// Time will only passed on playing.
 	// eg. Opening an UI will stop the world.
 	Time time.Time
+	// FPS controls speed of the game. When not defined, default FPS is 15.
+	FPS int
 	// Board have Tiles with it's style, axis and sizes defined.
 	Board *Board
 	// Parties are all parties in the game.
@@ -48,6 +57,22 @@ type World struct {
 	// DefaultStrategy is the default AI strategy for NPC.
 	// It should be defined so it can be used when an NPC doesn't have distinctive strategy.
 	DefaultStrategy *Strategy
+}
+
+func (w *World) ListenEvent() {
+	if w.FPS <= 0 {
+		w.FPS = 15
+	}
+	d := time.Duration(time.Second / w.FPS)
+	ticker := time.NewTicker(d)
+	for {
+		select {
+		case t := <-ticker.C:
+			for _, t := range w.Board.Tiles {
+				Tile.Occupier.Tick(d)
+			}
+		}
+	}
 }
 
 func (w *World) TurnOver() {
@@ -98,21 +123,61 @@ func (p *Party) AutoAction() {
 	}
 }
 
-type Character struct {
-	States      map[string]bool
-	Party       *Party
-	Class       *Class
-	Origin      *Tile
-	TotalPoints int
-	SpentPoints int
-	Moves       []Way
-	AttackDirs  [][]string
-	AttackPower int
-	Skills      map[string]Skill
-	HP          int
+type Action struct {
+	Name      string
+	Sequence  []image.Image
+	Lifetime  time.Duration
+	Age       time.Duration
+	Animation Animation
 }
 
-func (c *Charactor) Tile() *Tile {
+func (a *Action) Image() image.Image {
+	n := len(a.Sequence)
+	i := n * a.Age / a.Lifetime
+	return a.Sequence[i]
+}
+
+type State struct {
+	Name string
+}
+
+type Character struct {
+	Party           *Party
+	Class           *Class
+	RestAction      *Action
+	PendingActions  []*Action
+	States          map[State]bool
+	Equipments      map[string]*Item
+	Items           []*Item
+	Consumables     []*Consumable
+	Origin          *Tile
+	MaxPoints       int
+	RemainingPoints int
+	SpentPoints     int
+	Moves           []Way
+	AttackDirs      [][]string
+	AttackPower     int
+	Skills          map[string]Skill
+	HP              int
+}
+
+func (c *Character) Tick(d time.Duration) {
+	if len(c.PendingActions) == 0 {
+		c.RestAction.Age = 0
+		c.PendingActions = append(c.PendingActions, c.RestAction)
+	}
+	a := c.PendingActions[0]
+	if a.Lifetime != 0 {
+		a.Age += d
+		if a.Age >= a.Lifetime {
+			// finish the action
+			c.PendingActions = c.PendingActions[1:]
+		}
+	}
+
+}
+
+func (c *Character) Tile() *Tile {
 	if len(w.Moves) == 0 {
 		return c.Origin
 	}
@@ -123,13 +188,20 @@ func (c *Character) Step(w Way) bool {
 	if w.From != c.Tile() {
 		return false
 	}
-	c.Tile().Occupier = nil
+	if w.To.Occupier != nil {
+		return false
+	}
+	if c.RemainingPoints-c.SpentPoints < w.Cost {
+		return false
+	}
+	w.From.Occupier = nil
 	c.Moves = append(c.Moves, w)
-	c.Tile().Occupier = c
+	c.SpentPoints += w.Cost
+	w.To.Occupier = c
 	return true
 }
 
-func (c *Character) MoveTo(t *Tile) {
+func (c *Character) MoveTo(t *Tile) bool {
 	path := findPath(c.Tile(), t)
 	if path == nil {
 		return false
@@ -186,9 +258,20 @@ func (c *Character) AttackableTiles() []*Tile {
 	return tiles
 }
 
+// Commit makes Character cannot undo the previous actions.
+// It is diffrent from Done as it doesn't end the chearacter's turn.
+func (c *Character) Commit() {
+	c.Origin = c.Tile()
+	c.Moves = nil
+	c.RemainingPoints -= c.SpentPoints
+	c.SpentPoints = 0
+}
+
+// Done ends the character's turn.
 func (c *Character) Done() {
 	c.Origin = c.Tile()
 	c.Moves = nil
+	c.RemainingPoints = c.MaxPoints
 	c.SpentPoints = 0
 }
 
