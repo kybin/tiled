@@ -1,4 +1,4 @@
-package main
+package tiled
 
 import (
 	"image"
@@ -29,70 +29,6 @@ func (g *Game) Load() error {
 }
 
 type Field struct{}
-
-type Stage interface {
-	Win(*Party) bool
-	Defeated(*Party) bool
-	NoMorePlayer() bool
-	CurrentTurn() int
-	MaxTurns() int
-}
-
-type World struct {
-	// Time will only passed on playing.
-	// eg. Opening an UI will stop the world.
-	Time time.Time
-	// FPS controls speed of the game. When not defined, default FPS is 15.
-	FPS int
-	// Board have Tiles with it's style, axis and sizes defined.
-	Board *Board
-	// Parties are all parties in the game.
-	Parties []*Party
-	// ActiveParty is the party currently acting, either by user or AI.
-	ActiveParty *Party
-	// WaitedParties will act before the next party of ActiveParty.
-	WaitedParties []*Party
-	// Allies are ally parties to Party.
-	Allies map[*Party][]*Party
-	// DefaultStrategy is the default AI strategy for NPC.
-	// It should be defined so it can be used when an NPC doesn't have distinctive strategy.
-	DefaultStrategy *Strategy
-}
-
-func (w *World) ListenEvent() {
-	if w.FPS <= 0 {
-		w.FPS = 15
-	}
-	d := time.Duration(time.Second / w.FPS)
-	ticker := time.NewTicker(d)
-	for {
-		select {
-		case t := <-ticker.C:
-			for _, t := range w.Board.Tiles {
-				Tile.Occupier.Tick(d)
-			}
-		}
-	}
-}
-
-func (w *World) TurnOver() {
-	if len(w.WaitedParties) != 0 {
-		w.ActiveParty = w.WaitedParties[0]
-		w.WaitedParty = w.WaitedParty[1:]
-	} else {
-		nextPartyIdx := -1
-		for i, p := range Parties {
-			if p == w.ActiveParty {
-				nextPartyIdx = i + 1
-				break
-			}
-		}
-		if nextPartyIdx == len(w.Parties) {
-			nextPartyIdx = 0
-		}
-		w.ActiveParty = w.Parties[nextPartyIdx]
-	}
-}
 
 type Party struct {
 	World      *World
