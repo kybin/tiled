@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
+	"math/rand"
 	"time"
 )
 
 // Game is text based single user rpg.
 type Game struct {
-	Player *Player
-	Fields map[string]*Field
-	Drawer *Drawer
-	Ticker *time.Ticker
+	Player    *Player
+	Fields    map[string]*Field
+	Drawer    *Drawer
+	Ticker    *time.Ticker
+	TickSpeed time.Duration
 }
 
 func (g *Game) Name() string {
@@ -25,15 +27,31 @@ func (g *Game) Run() {
 		case <-g.Ticker.C:
 			g.Tick()
 		}
+		if g.Player.Character.Dead() {
+			fmt.Println("당신은 사망했습니다.")
+			return
+		}
 	}
 }
 
 func (g *Game) Tick() {
-	for _, e := range g.Player.Field.Events {
-		fmt.Println(e)
+	if len(g.Player.Field.Events) != 0 {
+		// Stop The World
+		for _, e := range g.Player.Field.Events {
+			fmt.Println(e)
+		}
+		g.Player.Field.Events = g.Player.Field.PendingEvents
+		g.Player.Field.PendingEvents = make([]*Event, 0)
+		return
 	}
-	g.Player.Field.Events = g.Player.Field.PendingEvents
-	g.Player.Field.PendingEvents = make([]*Event, 0)
+	for sType, s := range g.Player.Character.States {
+		res := s.Tick()
+		fmt.Println(res)
+		s.Age += g.TickSpeed
+		if s.Age >= s.Lifetime {
+			delete(g.Player.Character.States, sType)
+		}
+	}
 }
 
 type Player struct {
@@ -64,11 +82,17 @@ func (f *Field) Name() string {
 
 type Character struct {
 	name        string
+	HP          int
+	States      map[string]*State
 	Personality *Personality
 }
 
 func (c *Character) Name() string {
 	return c.name
+}
+
+func (c *Character) Dead() bool {
+	return c.HP <= 0
 }
 
 type Personality struct {
@@ -78,16 +102,16 @@ type Personality struct {
 	Free     int
 }
 
+type Namer interface {
+	Name() string
+}
+
 type Event struct {
 	Src      Namer
 	Dest     Namer
 	Action   Action
 	Age      time.Duration
 	Lifetime time.Duration
-}
-
-type Namer interface {
-	Name() string
 }
 
 func (e *Event) String() string {
@@ -120,14 +144,38 @@ func (a Action) String() string {
 	if a == ActionQurious {
 		return "갸우뚱 거립니다"
 	}
+	if a == ActionQurious {
+		return "갸우뚱 거립니다"
+	}
 	return ""
+}
+
+type State struct {
+	Character *Character
+	Type      string
+	Age       time.Duration
+	Lifetime  time.Duration
+	Tick      func() string
 }
 
 func main() {
 	game := &Game{}
 	pc := &Character{
-		name: "당신",
+		name:   "당신",
+		HP:     10,
+		States: make(map[string]*State),
 	}
+	bleed := &State{
+		Character: pc,
+		Type:      "bleed",
+		Lifetime:  10 * time.Second,
+		Tick: func() string {
+			d := rand.Intn(3) + 1
+			pc.HP -= d
+			return fmt.Sprintf("%s의 몸에서 피가 흘러 나옵니다. %s은 %d 만큼의 데미지를 입었습니다.", pc.Name(), pc.Name(), d)
+		},
+	}
+	pc.States[bleed.Type] = bleed
 	player := &Player{
 		Character: pc,
 	}
@@ -148,6 +196,7 @@ func main() {
 	fields[field.name] = field
 	game.Fields = fields
 	game.Player = player
-	game.Ticker = time.NewTicker(time.Second)
+	game.TickSpeed = 2 * time.Second
+	game.Ticker = time.NewTicker(game.TickSpeed)
 	game.Run()
 }
