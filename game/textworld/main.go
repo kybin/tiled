@@ -44,12 +44,17 @@ func (g *Game) Tick() {
 		g.Player.Field.PendingEvents = make([]*Event, 0)
 		return
 	}
-	for sType, s := range g.Player.Character.States {
-		res := s.Tick()
-		fmt.Println(res)
-		s.Age += g.TickSpeed
-		if s.Age >= s.Lifetime {
-			delete(g.Player.Character.States, sType)
+	chs := append(g.Player.Field.NPCs, g.Player.Character)
+	for _, ch := range chs {
+		for name, s := range ch.States {
+			if s.Tick != nil {
+				res := s.Tick(ch)
+				fmt.Println(res)
+			}
+			if s.End {
+				fmt.Println(s.OnEnd(ch))
+				delete(ch.States, name)
+			}
 		}
 	}
 }
@@ -82,7 +87,6 @@ func (f *Field) Name() string {
 
 type Character struct {
 	name        string
-	HP          int
 	States      map[string]*State
 	Personality *Personality
 }
@@ -92,7 +96,7 @@ func (c *Character) Name() string {
 }
 
 func (c *Character) Dead() bool {
-	return c.HP <= 0
+	return c.States["HP"].Value <= 0
 }
 
 type Personality struct {
@@ -151,36 +155,51 @@ func (a Action) String() string {
 }
 
 type State struct {
-	Character *Character
-	Type      string
-	Age       time.Duration
-	Lifetime  time.Duration
-	Tick      func() string
+	Name  string
+	Value int
+	End   bool
+	Tick  func(ch *Character) string
+	OnEnd func(ch *Character) string
 }
 
 func main() {
 	game := &Game{}
 	pc := &Character{
 		name:   "당신",
-		HP:     10,
 		States: make(map[string]*State),
 	}
-	bleed := &State{
-		Character: pc,
-		Type:      "bleed",
-		Lifetime:  10 * time.Second,
-		Tick: func() string {
-			d := rand.Intn(3) + 1
-			pc.HP -= d
-			return fmt.Sprintf("%s의 몸에서 피가 흘러 나옵니다. %s은 %d 만큼의 데미지를 입었습니다.", pc.Name(), pc.Name(), d)
+	stats := []State{
+		State{Name: "HP", Value: 10},
+		State{Name: "AttackSpeed", Value: 10},
+		State{Name: "AttackDamage", Value: 10},
+		State{Name: "DefenceDamage", Value: 10},
+		State{Name: "bleed", Value: 3,
+			Tick: func(ch *Character) string {
+				d := rand.Intn(3) + 1
+				ch.States["HP"].Value -= d
+				ch.States["bleed"].Value -= 1
+				if ch.States["bleed"].Value == 0 {
+					ch.States["bleed"].End = true
+				}
+				return fmt.Sprintf("%s의 몸에서 피가 흘러 나옵니다. %s은 %d 만큼의 데미지를 입었습니다. (남은체력 %d)", ch.Name(), ch.Name(), d, ch.States["HP"].Value)
+			},
+			OnEnd: func(ch *Character) string {
+				return fmt.Sprintf("%s의 몸에서 피가 흘러 나오기를 멈추었습니다.", ch.Name())
+			},
 		},
 	}
-	pc.States[bleed.Type] = bleed
+	for _, stat := range stats {
+		pc.States[stat.Name] = &stat
+	}
 	player := &Player{
 		Character: pc,
 	}
 	guard1 := &Character{
-		name: "왼쪽 경비병",
+		name:   "왼쪽 경비병",
+		States: make(map[string]*State),
+	}
+	for _, stat := range stats {
+		guard1.States[stat.Name] = &stat
 	}
 	guard2 := &Character{
 		name: "오른쪽 경비병",
