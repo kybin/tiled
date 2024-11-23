@@ -51,13 +51,14 @@ func (g *Game) Tick() {
 				s.Tick(c)
 			}
 		}
+	}
+	for _, c := range cs {
 		g.Drawer.DrawCharacter(c)
-		for _, s := range c.States {
-			if s.End {
-				if s.OnEnd != nil {
-					s.OnEnd(c)
-				}
-				delete(c.States, s.Name)
+	}
+	for _, c := range cs {
+		for name, s := range c.States {
+			if s.Temp || s.End != nil && s.End(c) {
+				delete(c.States, name)
 			}
 		}
 	}
@@ -75,9 +76,16 @@ func (t *textDrawer) DrawCharacter(c *Character) {
 		if c.States["bleed-damage"] != nil {
 			fmt.Printf("%s은 %d 만큼의 데미지를 입었습니다. (남은체력 %d)\n", c.Name(), c.States["bleed-damage"].Value, c.States["HP"].Value)
 		}
-		if c.States["bleed"].End {
-			fmt.Printf("%s의 몸에서 피가 흘러 나오기를 멈추었습니다.\n", c.Name())
-		}
+	}
+	if c.States["stop-bleed"] != nil {
+		fmt.Printf("%s의 몸에서 피가 흘러 나오기를 멈추었습니다.\n", c.Name())
+	}
+	if c.States["attack"] != nil {
+		a := c.States["attack"]
+		fmt.Printf("%s이 %s를 공격해 %d 만큼의 데미지를 입혔습니다. (남은체력 %d)\n", c.Name(), a.Target.Name(), a.Value, a.Target.States["HP"].Value)
+	}
+	if c.States["dead"] != nil {
+		fmt.Printf("%s이 죽었습니다.\n", c.Name())
 	}
 }
 
@@ -117,6 +125,31 @@ func (c *Character) Name() string {
 
 func (c *Character) Dead() bool {
 	return c.States["HP"].Value <= 0
+}
+
+func (c *Character) Attack(target *Character) {
+	c.States["attack"] = &State{
+		Name:   "attack",
+		Target: target,
+		Tick: func(c *Character) {
+			damage := 1 + rand.Intn(6)
+			c.States["attack"].Value = damage
+			target.States["HP"].Value -= damage
+			target.States["attacked"] = &State{
+				Name:   "attacked",
+				Target: c,
+				Value:  damage,
+				Temp:   true,
+			}
+		},
+		End: func(c *Character) bool {
+			if target.States["HP"].Value <= 0 {
+				target.States["dead"] = &State{Temp: true}
+				return true
+			}
+			return false
+		},
+	}
 }
 
 type Personality struct {
@@ -175,12 +208,12 @@ func (a Action) String() string {
 }
 
 type State struct {
-	Name  string
-	Value int
-	// End ends the State. User can set it true to end the State.
-	End   bool
-	Tick  func(ch *Character)
-	OnEnd func(ch *Character)
+	Temp   bool
+	Name   string
+	Target *Character
+	Value  int
+	End    func(c *Character) bool
+	Tick   func(c *Character)
 }
 
 func main() {
@@ -196,15 +229,19 @@ func main() {
 		State{Name: "AttackSpeed", Value: 10},
 		State{Name: "AttackDamage", Value: 10},
 		State{Name: "DefenceDamage", Value: 10},
-		State{Name: "bleed", Value: 3,
+		State{Name: "bleed", Value: 1,
 			Tick: func(c *Character) {
 				d := rand.Intn(3) + 1
-				c.States["bleed-damage"] = &State{Name: "bleed-damage", Value: d}
+				c.States["bleed-damage"] = &State{Name: "bleed-damage", Value: d, Temp: true}
 				c.States["HP"].Value -= d
 				c.States["bleed"].Value -= 1
-				if c.States["bleed"].Value == 0 {
-					c.States["bleed"].End = true
+			},
+			End: func(c *Character) bool {
+				if c.States["bleed"].Value <= 0 {
+					c.States["stop-bleed"] = &State{Temp: true}
+					return true
 				}
+				return false
 			},
 		},
 	}
@@ -231,6 +268,7 @@ func main() {
 		name: "성문 앞",
 		NPCs: npcs,
 	}
+	pc.Attack(guard1)
 	fields := make(map[string]*Field)
 	fields[field.name] = field
 	game.Fields = fields
