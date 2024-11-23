@@ -10,7 +10,7 @@ import (
 type Game struct {
 	Player       *Player
 	Fields       map[string]*Field
-	Drawer       *Drawer
+	Drawer       Drawer
 	Ticker       *time.Ticker
 	TickInterval time.Duration
 }
@@ -44,17 +44,39 @@ func (g *Game) Tick() {
 		g.Player.Field.PendingEvents = make([]*Event, 0)
 		return
 	}
-	chs := append(g.Player.Field.NPCs, g.Player.Character)
-	for _, ch := range chs {
-		for name, s := range ch.States {
+	cs := append(g.Player.Field.NPCs, g.Player.Character)
+	for _, c := range cs {
+		for _, s := range c.States {
 			if s.Tick != nil {
-				res := s.Tick(ch)
-				fmt.Println(res)
+				s.Tick(c)
 			}
+		}
+		g.Drawer.DrawCharacter(c)
+		for _, s := range c.States {
 			if s.End {
-				fmt.Println(s.OnEnd(ch))
-				delete(ch.States, name)
+				if s.OnEnd != nil {
+					s.OnEnd(c)
+				}
+				delete(c.States, s.Name)
 			}
+		}
+	}
+}
+
+type Drawer interface {
+	DrawCharacter(c *Character)
+}
+
+type textDrawer struct{}
+
+func (t *textDrawer) DrawCharacter(c *Character) {
+	if c.States["bleed"] != nil {
+		fmt.Printf("%s의 몸에서 피가 흘러 나옵니다.\n", c.Name())
+		if c.States["bleed-damage"] != nil {
+			fmt.Printf("%s은 %d 만큼의 데미지를 입었습니다. (남은체력 %d)\n", c.Name(), c.States["bleed-damage"].Value, c.States["HP"].Value)
+		}
+		if c.States["bleed"].End {
+			fmt.Printf("%s의 몸에서 피가 흘러 나오기를 멈추었습니다.\n", c.Name())
 		}
 	}
 }
@@ -71,8 +93,6 @@ func (p *Player) Enter(f *Field) {
 		p.Field.PendingEvents = append(p.Field.PendingEvents, &Event{Src: npc, Dest: p.Character, Action: ActionLook})
 	}
 }
-
-type Drawer struct{}
 
 type Field struct {
 	name          string
@@ -157,13 +177,16 @@ func (a Action) String() string {
 type State struct {
 	Name  string
 	Value int
+	// End ends the State. User can set it true to end the State.
 	End   bool
-	Tick  func(ch *Character) string
-	OnEnd func(ch *Character) string
+	Tick  func(ch *Character)
+	OnEnd func(ch *Character)
 }
 
 func main() {
-	game := &Game{}
+	game := &Game{
+		Drawer: &textDrawer{},
+	}
 	pc := &Character{
 		name:   "당신",
 		States: make(map[string]*State),
@@ -174,17 +197,14 @@ func main() {
 		State{Name: "AttackDamage", Value: 10},
 		State{Name: "DefenceDamage", Value: 10},
 		State{Name: "bleed", Value: 3,
-			Tick: func(ch *Character) string {
+			Tick: func(c *Character) {
 				d := rand.Intn(3) + 1
-				ch.States["HP"].Value -= d
-				ch.States["bleed"].Value -= 1
-				if ch.States["bleed"].Value == 0 {
-					ch.States["bleed"].End = true
+				c.States["bleed-damage"] = &State{Name: "bleed-damage", Value: d}
+				c.States["HP"].Value -= d
+				c.States["bleed"].Value -= 1
+				if c.States["bleed"].Value == 0 {
+					c.States["bleed"].End = true
 				}
-				return fmt.Sprintf("%s의 몸에서 피가 흘러 나옵니다. %s은 %d 만큼의 데미지를 입었습니다. (남은체력 %d)", ch.Name(), ch.Name(), d, ch.States["HP"].Value)
-			},
-			OnEnd: func(ch *Character) string {
-				return fmt.Sprintf("%s의 몸에서 피가 흘러 나오기를 멈추었습니다.", ch.Name())
 			},
 		},
 	}
