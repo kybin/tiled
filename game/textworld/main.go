@@ -8,11 +8,11 @@ import (
 
 // Game is text based single user rpg.
 type Game struct {
-	Player    *Player
-	Fields    map[string]*Field
-	Drawer    *Drawer
-	Ticker    *time.Ticker
-	TickSpeed time.Duration
+	Player       *Player
+	Fields       map[string]*Field
+	Drawer       *Drawer
+	Ticker       *time.Ticker
+	TickInterval time.Duration
 }
 
 func (g *Game) Name() string {
@@ -215,7 +215,7 @@ func main() {
 	fields[field.name] = field
 	game.Fields = fields
 	game.Player = player
-	game.TickSpeed = 2 * time.Second
-	game.Ticker = time.NewTicker(game.TickSpeed)
+	game.TickInterval = 2 * time.Second
+	game.Ticker = time.NewTicker(game.TickInterval)
 	game.Run()
 }
