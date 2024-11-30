@@ -33,113 +33,6 @@ import (
 	"golang.org/x/mobile/event/size"
 )
 
-func main() {
-	driver.Main(func(s screen.Screen) {
-		w, err := s.NewWindow(&screen.NewWindowOptions{
-			Title: "Board GUI",
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer w.Release()
-
-		var (
-			pool = &tilePool{
-				screen:   s,
-				drawRGBA: drawRGBA,
-				m:        map[image.Point]*tilePoolEntry{},
-			}
-			dragging     bool
-			paintPending bool
-			drag         image.Point
-			origin       image.Point
-			topLeft      image.Point
-			sz           size.Event
-		)
-		for {
-			switch e := w.NextEvent().(type) {
-			case lifecycle.Event:
-				if e.To == lifecycle.StageDead {
-					return
-				}
-
-			case key.Event:
-				if e.Code == key.CodeEscape {
-					return
-				}
-
-			case mouse.Event:
-				p := image.Point{X: int(e.X), Y: int(e.Y)}
-				if e.Button == mouse.ButtonLeft && e.Direction != mouse.DirNone {
-					dragging = e.Direction == mouse.DirPress
-					drag = p
-				}
-				if !dragging {
-					break
-				}
-				origin = origin.Sub(p.Sub(drag))
-				drag = p
-				if !paintPending {
-					paintPending = true
-					w.Send(paint.Event{})
-				}
-
-			case paint.Event:
-				generation++
-				var wg sync.WaitGroup
-				size := image.Pt(sz.WidthPx, sz.HeightPx)
-				topLeft = image.Pt(origin.X-size.X/2+128/2*5, origin.Y-size.Y/2+128/2*5)
-				for y := -(topLeft.Y & 0x7f); y < sz.HeightPx; y += 128 {
-					for x := -(topLeft.X & 0x7f); x < sz.WidthPx; x += 128 {
-						wg.Add(1)
-						go drawTile(&wg, w, pool, topLeft, x, y)
-					}
-				}
-				wg.Wait()
-				w.Publish()
-				paintPending = false
-				pool.releaseUnused()
-
-			case size.Event:
-				sz = e
-
-			case error:
-				log.Print(e)
-			}
-		}
-	})
-}
-
-func drawTile(wg *sync.WaitGroup, w screen.Window, pool *tilePool, origin image.Point, x, y int) {
-	defer wg.Done()
-	tp := image.Point{
-		(x + origin.X) >> 7,
-		(y + origin.Y) >> 7,
-	}
-	tex, err := pool.get(tp)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Src, nil)
-}
-
-func drawRGBA(m *image.RGBA, tp image.Point) {
-	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
-	for _, p := range crossPoints {
-		m.SetRGBA(p.X, p.Y, crossColor)
-	}
-	d := font.Drawer{
-		Dst:  m,
-		Src:  image.Black,
-		Face: inconsolata.Regular8x16,
-		Dot: fixed.Point26_6{
-			Y: inconsolata.Regular8x16.Metrics().Ascent,
-		},
-	}
-	d.DrawString(fmt.Sprint(tp))
-}
-
 var (
 	crossColor  = color.RGBA{0x7f, 0x00, 0x00, 0xff}
 	crossPoints = []image.Point{
@@ -163,12 +56,195 @@ var (
 
 		{0x00, 0x40},
 	}
+	cursorColor  = color.RGBA{0x7f, 0x7f, 0x00, 0xff}
+	cursorPoints = []image.Point{}
 
 	generation int
 
 	tileSize   = image.Point{128, 128}
 	tileBounds = image.Rectangle{Max: tileSize}
+	boardSize  = [2]int{5, 5}
 )
+
+func main() {
+	driver.Main(func(s screen.Screen) {
+		w, err := s.NewWindow(&screen.NewWindowOptions{
+			Title: "Board GUI",
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer w.Release()
+
+		var (
+			pool = &tilePool{
+				screen:         s,
+				drawTileRGBA:   drawTileRGBA,
+				drawCursorRGBA: drawCursorRGBA,
+				m:              map[image.Point]*tilePoolEntry{},
+			}
+			dragging     bool
+			paintPending bool
+			drag         image.Point
+			offset       image.Point
+			topLeft      image.Point
+			sz           size.Event
+		)
+		cursorPos := [2]int{0, 0}
+		for y := 0; y < tileSize.Y; y++ {
+			for x := 0; x < tileSize.X; x++ {
+				if x == 0 || y == 0 || x == tileSize.X-1 || y == tileSize.Y-1 {
+					cursorPoints = append(cursorPoints, image.Pt(x, y))
+				}
+			}
+		}
+		for {
+			switch e := w.NextEvent().(type) {
+			case lifecycle.Event:
+				if e.To == lifecycle.StageDead {
+					return
+				}
+
+			case key.Event:
+				if e.Code == key.CodeEscape {
+					return
+				}
+				if e.Direction == key.DirPress {
+					if e.Code == key.CodeLeftArrow {
+						cursorPos[0]--
+						if cursorPos[0] < 0 {
+							cursorPos[0] = 0
+						}
+					}
+					if e.Code == key.CodeRightArrow {
+						cursorPos[0]++
+						if cursorPos[0] >= boardSize[0] {
+							cursorPos[0] = boardSize[0] - 1
+						}
+					}
+					if e.Code == key.CodeUpArrow {
+						cursorPos[1]--
+						if cursorPos[1] < 0 {
+							cursorPos[1] = 0
+						}
+					}
+					if e.Code == key.CodeDownArrow {
+						cursorPos[1]++
+						if cursorPos[1] >= boardSize[1] {
+							cursorPos[1] = boardSize[1] - 1
+						}
+					}
+					if !paintPending {
+						paintPending = true
+						w.Send(paint.Event{})
+					}
+				}
+
+			case mouse.Event:
+				p := image.Point{X: int(e.X), Y: int(e.Y)}
+				if e.Button == mouse.ButtonLeft && e.Direction != mouse.DirNone {
+					dragging = e.Direction == mouse.DirPress
+					drag = p
+				}
+				if !dragging {
+					break
+				}
+				offset = offset.Sub(p.Sub(drag))
+				drag = p
+				if !paintPending {
+					paintPending = true
+					w.Send(paint.Event{})
+				}
+
+			case paint.Event:
+				generation++
+				var wg sync.WaitGroup
+				winSize := image.Pt(sz.WidthPx, sz.HeightPx)
+				topLeft = image.Pt(offset.X-winSize.X/2+128/2*5, offset.Y-winSize.Y/2+128/2*5)
+				for y := -(topLeft.Y & 0x7f); y < winSize.Y; y += tileSize.Y {
+					for x := -(topLeft.X & 0x7f); x < winSize.X; x += tileSize.X {
+						wg.Add(1)
+						go drawTile(&wg, w, pool, topLeft, x, y)
+					}
+				}
+				wg.Wait()
+				wg.Add(1)
+				go drawCursor(&wg, w, pool, topLeft, -topLeft.X+cursorPos[0]*tileSize.X, -topLeft.Y+cursorPos[1]*tileSize.Y)
+				wg.Wait()
+				w.Publish()
+				paintPending = false
+				pool.releaseUnused()
+
+			case size.Event:
+				sz = e
+
+			case error:
+				log.Print(e)
+			}
+		}
+	})
+}
+
+func drawTile(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
+	defer wg.Done()
+	tp := image.Point{
+		(x + topLeft.X) >> 7,
+		(y + topLeft.Y) >> 7,
+	}
+	tex, err := pool.get(tp)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Src, nil)
+}
+
+func drawTileRGBA(m *image.RGBA, tp image.Point) {
+	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
+	for _, p := range crossPoints {
+		m.SetRGBA(p.X, p.Y, crossColor)
+	}
+	d := font.Drawer{
+		Dst:  m,
+		Src:  image.Black,
+		Face: inconsolata.Regular8x16,
+		Dot: fixed.Point26_6{
+			Y: inconsolata.Regular8x16.Metrics().Ascent,
+		},
+	}
+	d.DrawString(fmt.Sprint(tp))
+}
+
+func drawCursor(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
+	defer wg.Done()
+	tp := image.Point{
+		(x + topLeft.X) >> 7,
+		(y + topLeft.Y) >> 7,
+	}
+	tex, err := pool.screen.NewTexture(tileSize)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	buf, err := pool.screen.NewBuffer(tileSize)
+	if err != nil {
+		tex.Release()
+		log.Println(err)
+		return
+	}
+	pool.drawCursorRGBA(buf.RGBA(), tp)
+	tex.Upload(image.Point{}, buf, tileBounds)
+	buf.Release()
+	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Src, nil)
+	tex.Release()
+}
+
+func drawCursorRGBA(m *image.RGBA, tp image.Point) {
+	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
+	for _, p := range cursorPoints {
+		m.SetRGBA(p.X, p.Y, cursorColor)
+	}
+}
 
 type tilePoolEntry struct {
 	tex screen.Texture
@@ -176,8 +252,9 @@ type tilePoolEntry struct {
 }
 
 type tilePool struct {
-	screen   screen.Screen
-	drawRGBA func(*image.RGBA, image.Point)
+	screen         screen.Screen
+	drawTileRGBA   func(*image.RGBA, image.Point)
+	drawCursorRGBA func(*image.RGBA, image.Point)
 
 	mu sync.Mutex
 	m  map[image.Point]*tilePoolEntry
@@ -203,8 +280,8 @@ func (p *tilePool) get(tp image.Point) (screen.Texture, error) {
 		tex.Release()
 		return nil, err
 	}
-	if tp.X >= 0 && tp.X < 5 && tp.Y >= 0 && tp.Y < 5 {
-		p.drawRGBA(buf.RGBA(), tp)
+	if tp.X >= 0 && tp.X < boardSize[0] && tp.Y >= 0 && tp.Y < boardSize[1] {
+		p.drawTileRGBA(buf.RGBA(), tp)
 	}
 	tex.Upload(image.Point{}, buf, tileBounds)
 	buf.Release()
