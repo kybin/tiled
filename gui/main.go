@@ -73,6 +73,7 @@ func main() {
 			dragging     bool
 			paintPending bool
 			drag         image.Point
+			dragOffset   image.Point
 			offset       image.Point
 			topLeft      image.Point
 			sz           size.Event
@@ -129,14 +130,47 @@ func main() {
 
 			case mouse.Event:
 				p := image.Point{X: int(e.X), Y: int(e.Y)}
+				if e.Button == mouse.ButtonLeft && e.Direction == mouse.DirRelease {
+					xoff := dragOffset.X
+					if xoff < 0 {
+						xoff = -xoff
+					}
+					yoff := dragOffset.Y
+					if yoff < 0 {
+						yoff = -yoff
+					}
+					if xoff < 3 && yoff < 3 {
+						winSize := image.Pt(sz.WidthPx, sz.HeightPx)
+						topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
+						x := (p.X + topLeft.X) / tileSize.X
+						y := (p.Y + topLeft.Y) / tileSize.Y
+						if x < 0 || x >= boardSize[0] || y < 0 || y >= boardSize[1] {
+							dragging = false
+							break
+						}
+						cursorPos[0] = x
+						cursorPos[1] = y
+						if !paintPending {
+							paintPending = true
+							w.Send(paint.Event{})
+						}
+						dragging = false
+						break
+					}
+					dragging = false
+					dragOffset = image.Point{}
+					break
+				}
 				if e.Button == mouse.ButtonLeft && e.Direction != mouse.DirNone {
 					dragging = e.Direction == mouse.DirPress
 					drag = p
+					dragOffset = image.Point{}
 				}
 				if !dragging {
 					break
 				}
 				offset = offset.Sub(p.Sub(drag))
+				dragOffset = dragOffset.Sub(p.Sub(drag))
 				drag = p
 				if !paintPending {
 					paintPending = true
