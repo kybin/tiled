@@ -48,9 +48,9 @@ var (
 
 	generation int
 
-	tileSize   = image.Point{128, 128}
+	tileSize   = image.Point{64, 64}
 	tileBounds = image.Rectangle{Max: tileSize}
-	boardSize  = [2]int{5, 5}
+	boardSize  = [2]int{10, 10}
 )
 
 func main() {
@@ -147,7 +147,7 @@ func main() {
 				generation++
 				var wg sync.WaitGroup
 				winSize := image.Pt(sz.WidthPx, sz.HeightPx)
-				topLeft = image.Pt(offset.X-winSize.X/2+128/2*5, offset.Y-winSize.Y/2+128/2*5)
+				topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
 				for y := -(topLeft.Y & 0x7f); y < winSize.Y; y += tileSize.Y {
 					for x := -(topLeft.X & 0x7f); x < winSize.X; x += tileSize.X {
 						wg.Add(1)
@@ -175,8 +175,8 @@ func main() {
 func drawTile(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
 	defer wg.Done()
 	tp := image.Point{
-		(x + topLeft.X) >> 7,
-		(y + topLeft.Y) >> 7,
+		(x + topLeft.X) / tileSize.X,
+		(y + topLeft.Y) / tileSize.Y,
 	}
 	tex, err := pool.get(tp)
 	if err != nil {
@@ -205,8 +205,8 @@ func drawTileRGBA(m *image.RGBA, tp image.Point) {
 func drawCursor(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
 	defer wg.Done()
 	tp := image.Point{
-		(x + topLeft.X) >> 7,
-		(y + topLeft.Y) >> 7,
+		(x + topLeft.X) / tileSize.X,
+		(y + topLeft.Y) / tileSize.Y,
 	}
 	tex, err := pool.screen.NewTexture(tileSize)
 	if err != nil {
