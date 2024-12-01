@@ -44,6 +44,7 @@ var (
 		{0x00, 0x40},
 	}
 	cursorColor  = color.RGBA{0x7f, 0x7f, 0x00, 0xff}
+	hoverColor   = color.RGBA{192, 192, 192, 255}
 	cursorPoints = []image.Point{}
 
 	generation int
@@ -79,6 +80,7 @@ func main() {
 			sz           size.Event
 		)
 		cursorPos := [2]int{0, 0}
+		hoverPos := [2]int{-1, -1}
 		for y := 0; y < tileSize.Y; y++ {
 			for x := 0; x < tileSize.X; x++ {
 				if x == 0 || y == 0 || x == tileSize.X-1 || y == tileSize.Y-1 {
@@ -130,6 +132,24 @@ func main() {
 
 			case mouse.Event:
 				p := image.Point{X: int(e.X), Y: int(e.Y)}
+				winSize := image.Pt(sz.WidthPx, sz.HeightPx)
+				topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
+				x := (p.X + topLeft.X) / tileSize.X
+				y := (p.Y + topLeft.Y) / tileSize.Y
+				hx := x
+				hy := y
+				if hx < 0 || hx >= boardSize[0] || hy < 0 || hy >= boardSize[1] {
+					hx = -1
+					hy = -1
+				}
+				if hoverPos[0] != hx || hoverPos[1] != hy {
+					hoverPos[0] = hx
+					hoverPos[1] = hy
+					if !paintPending {
+						paintPending = true
+						w.Send(paint.Event{})
+					}
+				}
 				if e.Button == mouse.ButtonLeft && e.Direction == mouse.DirRelease {
 					xoff := dragOffset.X
 					if xoff < 0 {
@@ -140,8 +160,6 @@ func main() {
 						yoff = -yoff
 					}
 					if xoff < 3 && yoff < 3 {
-						winSize := image.Pt(sz.WidthPx, sz.HeightPx)
-						topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
 						x := (p.X + topLeft.X) / tileSize.X
 						y := (p.Y + topLeft.Y) / tileSize.Y
 						if x < 0 || x >= boardSize[0] || y < 0 || y >= boardSize[1] {
@@ -189,6 +207,11 @@ func main() {
 					}
 				}
 				wg.Wait()
+				if hoverPos[0] != -1 {
+					wg.Add(1)
+					go drawHover(&wg, w, pool, topLeft, -topLeft.X+hoverPos[0]*tileSize.X, -topLeft.Y+hoverPos[1]*tileSize.Y)
+					wg.Wait()
+				}
 				wg.Add(1)
 				go drawCursor(&wg, w, pool, topLeft, -topLeft.X+cursorPos[0]*tileSize.X, -topLeft.Y+cursorPos[1]*tileSize.Y)
 				wg.Wait()
@@ -264,6 +287,37 @@ func drawCursorRGBA(m *image.RGBA, tp image.Point) {
 	draw.Draw(m, m.Bounds(), image.NewUniform(color.RGBA{}), image.Point{}, draw.Src)
 	for _, p := range cursorPoints {
 		m.SetRGBA(p.X, p.Y, cursorColor)
+	}
+}
+
+func drawHover(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
+	defer wg.Done()
+	tp := image.Point{
+		(x + topLeft.X) / tileSize.X,
+		(y + topLeft.Y) / tileSize.Y,
+	}
+	tex, err := pool.screen.NewTexture(tileSize)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	buf, err := pool.screen.NewBuffer(tileSize)
+	if err != nil {
+		tex.Release()
+		log.Println(err)
+		return
+	}
+	drawHoverRGBA(buf.RGBA(), tp)
+	tex.Upload(image.Point{}, buf, tileBounds)
+	buf.Release()
+	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Over, nil)
+	tex.Release()
+}
+
+func drawHoverRGBA(m *image.RGBA, tp image.Point) {
+	draw.Draw(m, m.Bounds(), image.NewUniform(color.RGBA{}), image.Point{}, draw.Src)
+	for _, p := range cursorPoints {
+		m.SetRGBA(p.X, p.Y, hoverColor)
 	}
 }
 
