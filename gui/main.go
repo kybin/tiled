@@ -222,12 +222,12 @@ func drawCursor(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft ima
 	pool.drawCursorRGBA(buf.RGBA(), tp)
 	tex.Upload(image.Point{}, buf, tileBounds)
 	buf.Release()
-	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Src, nil)
+	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Over, nil)
 	tex.Release()
 }
 
 func drawCursorRGBA(m *image.RGBA, tp image.Point) {
-	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.Draw(m, m.Bounds(), image.NewUniform(color.RGBA{}), image.Point{}, draw.Src)
 	for _, p := range cursorPoints {
 		m.SetRGBA(p.X, p.Y, cursorColor)
 	}
