@@ -43,7 +43,7 @@ var (
 
 		{0x00, 0x40},
 	}
-	cursorColor  = color.RGBA{0x7f, 0x7f, 0x00, 0xff}
+	cursorColor  = color.RGBA{64, 192, 0, 255}
 	hoverColor   = color.RGBA{192, 192, 192, 255}
 	cursorPoints = []image.Point{}
 
