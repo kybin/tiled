@@ -5,9 +5,12 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	_ "image/png"
 	"log"
+	"os"
 	"sync"
 
+	"github.com/kybin/tiled/gui/asset"
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
 	"golang.org/x/image/font"
@@ -49,10 +52,22 @@ var (
 
 	generation int
 
-	tileSize   = image.Point{64, 64}
+	tileSize   = image.Point{16, 16}
 	tileBounds = image.Rectangle{Max: tileSize}
 	boardSize  = [2]int{10, 10}
 )
+
+func loadImage(name string) (image.Image, error) {
+	f, err := os.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+	return img, nil
+}
 
 func main() {
 	driver.Main(func(s screen.Screen) {
@@ -63,6 +78,29 @@ func main() {
 			log.Fatal(err)
 		}
 		defer w.Release()
+
+		for _, ts := range asset.TileSets {
+			img, err := loadImage(ts.File)
+			if err != nil {
+				log.Println(err)
+			}
+			size := img.Bounds().Max
+			tex, err := s.NewTexture(size)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			buf, err := s.NewBuffer(size)
+			if err != nil {
+				tex.Release()
+				log.Println(err)
+				return
+			}
+			draw.Draw(buf.RGBA(), img.Bounds(), img, image.Point{}, draw.Src)
+			tex.Upload(image.Point{}, buf, img.Bounds())
+			buf.Release()
+			ts.Texture = tex
+		}
 
 		var (
 			pool = &tilePool{
@@ -78,6 +116,7 @@ func main() {
 			offset       image.Point
 			topLeft      image.Point
 			sz           size.Event
+			winSize      image.Point
 		)
 		cursorPos := [2]int{0, 0}
 		hoverPos := [2]int{-1, -1}
@@ -132,7 +171,6 @@ func main() {
 
 			case mouse.Event:
 				p := image.Point{X: int(e.X), Y: int(e.Y)}
-				winSize := image.Pt(sz.WidthPx, sz.HeightPx)
 				topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
 				x := (p.X + topLeft.X) / tileSize.X
 				y := (p.Y + topLeft.Y) / tileSize.Y
@@ -198,12 +236,12 @@ func main() {
 			case paint.Event:
 				generation++
 				var wg sync.WaitGroup
-				winSize := image.Pt(sz.WidthPx, sz.HeightPx)
+				drawBg(w, s, winSize)
 				topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
 				for y := -(topLeft.Y & 0x7f); y < winSize.Y; y += tileSize.Y {
 					for x := -(topLeft.X & 0x7f); x < winSize.X; x += tileSize.X {
 						wg.Add(1)
-						go drawTile(&wg, w, pool, topLeft, x, y)
+						go drawTile(&wg, w, asset.TileSets["basictiles"], topLeft, x, y)
 					}
 				}
 				wg.Wait()
@@ -221,6 +259,7 @@ func main() {
 
 			case size.Event:
 				sz = e
+				winSize = image.Pt(sz.WidthPx, sz.HeightPx)
 
 			case error:
 				log.Print(e)
@@ -229,17 +268,41 @@ func main() {
 	})
 }
 
-func drawTile(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
+func drawBg(w screen.Window, s screen.Screen, winSize image.Point) {
+	tex, err := s.NewTexture(winSize)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	buf, err := s.NewBuffer(winSize)
+	if err != nil {
+		tex.Release()
+		log.Println(err)
+		return
+	}
+	m := buf.RGBA()
+	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
+	tex.Upload(image.Point{}, buf, tex.Bounds())
+	buf.Release()
+	w.Copy(image.Point{}, tex, tex.Bounds(), screen.Src, nil)
+}
+
+func drawTile(wg *sync.WaitGroup, w screen.Window, ts *asset.TileSet, topLeft image.Point, x, y int) {
 	defer wg.Done()
 	tp := image.Point{
 		(x + topLeft.X) / tileSize.X,
 		(y + topLeft.Y) / tileSize.Y,
 	}
-	tex, err := pool.get(tp)
-	if err != nil {
-		log.Println(err)
+	if tp.X < 0 || tp.X >= boardSize[0] || tp.Y < 0 || tp.Y >= boardSize[1] {
 		return
 	}
+	tex := ts.Texture
+	sz := ts.TileSize
+	maxi := tex.Size().X / sz
+	maxj := tex.Size().Y / sz
+	i := tp.X % maxi
+	j := tp.Y % maxj
+	tileBounds := image.Rect(sz*i, sz*j, sz*(i+1), sz*(j+1))
 	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Src, nil)
 }
 
