@@ -325,13 +325,9 @@ func main() {
 				}
 				wg.Wait()
 				if hoverPos[0] != -1 {
-					wg.Add(1)
-					go drawHover(&wg, w, stg, topLeft, -topLeft.X+hoverPos[0]*stg.TileSize.X, -topLeft.Y+hoverPos[1]*stg.TileSize.Y)
-					wg.Wait()
+					drawHover(w, stg, topLeft, -topLeft.X+hoverPos[0]*stg.TileSize.X, -topLeft.Y+hoverPos[1]*stg.TileSize.Y)
 				}
-				wg.Add(1)
-				go drawCursor(&wg, w, stg, topLeft, -topLeft.X+cursorPos[0]*stg.TileSize.X, -topLeft.Y+cursorPos[1]*stg.TileSize.Y)
-				wg.Wait()
+				drawCursor(w, stg, topLeft, -topLeft.X+cursorPos[0]*stg.TileSize.X, -topLeft.Y+cursorPos[1]*stg.TileSize.Y)
 				w.Publish()
 				paintPending = false
 
@@ -377,64 +373,30 @@ func drawTile(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Poi
 	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Src, nil)
 }
 
-func drawCursor(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
-	defer wg.Done()
-	tp := image.Point{
-		(x + topLeft.X) / stg.TileSize.X,
-		(y + topLeft.Y) / stg.TileSize.Y,
+func drawCursor(w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
+	img := image.NewRGBA(image.Rect(0, 0, stg.TileSize.X, stg.TileSize.Y))
+	for _, p := range cursorPoints {
+		img.SetRGBA(p.X, p.Y, cursorColor)
 	}
-	tex, err := stg.Screen.NewTexture(stg.TileSize)
+	tex, err := toScreenTex(stg.Screen, img)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	buf, err := stg.Screen.NewBuffer(stg.TileSize)
-	if err != nil {
-		tex.Release()
-		log.Println(err)
-		return
-	}
-	drawCursorRGBA(buf.RGBA(), tp)
-	tex.Upload(image.Point{}, buf, buf.Bounds())
-	buf.Release()
 	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Over, nil)
 	tex.Release()
 }
 
-func drawCursorRGBA(m *image.RGBA, tp image.Point) {
-	draw.Copy(m, image.Point{}, image.NewUniform(color.RGBA{}), m.Bounds(), draw.Src, nil)
+func drawHover(w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
+	img := image.NewRGBA(image.Rect(0, 0, stg.TileSize.X, stg.TileSize.Y))
 	for _, p := range cursorPoints {
-		m.SetRGBA(p.X, p.Y, cursorColor)
+		img.SetRGBA(p.X, p.Y, hoverColor)
 	}
-}
-
-func drawHover(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
-	defer wg.Done()
-	tp := image.Point{
-		(x + topLeft.X) / stg.TileSize.X,
-		(y + topLeft.Y) / stg.TileSize.Y,
-	}
-	tex, err := stg.Screen.NewTexture(stg.TileSize)
+	tex, err := toScreenTex(stg.Screen, img)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	buf, err := stg.Screen.NewBuffer(stg.TileSize)
-	if err != nil {
-		tex.Release()
-		log.Println(err)
-		return
-	}
-	drawHoverRGBA(buf.RGBA(), tp)
-	tex.Upload(image.Point{}, buf, buf.Bounds())
-	buf.Release()
 	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Over, nil)
 	tex.Release()
-}
-
-func drawHoverRGBA(m *image.RGBA, tp image.Point) {
-	draw.Copy(m, image.Point{}, image.NewUniform(color.RGBA{}), m.Bounds(), draw.Src, nil)
-	for _, p := range cursorPoints {
-		m.SetRGBA(p.X, p.Y, hoverColor)
-	}
 }
