@@ -17,6 +17,14 @@ var basictiles = &TileSet{
 	TileSize: 16,
 }
 
+var overworld = &TileSet{
+	Author:   "ArMM1998",
+	License:  "CC0",
+	File:     "asset/overworld.png",
+	TileSize: 16,
+}
+
 var TileSets = map[string]*TileSet{
 	"basictiles": basictiles,
+	"overworld":  overworld,
 }

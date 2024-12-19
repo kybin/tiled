@@ -172,10 +172,11 @@ func main() {
 		)
 		stg := &Stage{
 			Screen:   s,
-			Size:     image.Pt(3, 3),
+			Size:     image.Pt(3, 4),
 			TileSize: image.Pt(32, 32),
 			TileSets: []*asset.TileSet{
 				asset.TileSets["basictiles"],
+				asset.TileSets["overworld"],
 			},
 			TexMap: []TexPos{
 				{T: 0, I: 0, J: 0},
@@ -187,6 +188,9 @@ func main() {
 				{T: 0, I: 0, J: 2},
 				{T: 0, I: 1, J: 2},
 				{T: 0, I: 2, J: 2},
+				{T: 1, I: 0, J: 0},
+				{T: 1, I: 0, J: 1},
+				{T: 1, I: 0, J: 2},
 			},
 		}
 		err = stg.Setup()
