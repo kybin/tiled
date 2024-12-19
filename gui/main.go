@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
 	_ "image/png"
 	"log"
 	"os"
@@ -13,9 +12,7 @@ import (
 	"github.com/kybin/tiled/gui/asset"
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/inconsolata"
-	"golang.org/x/image/math/fixed"
+	"golang.org/x/image/draw"
 	"golang.org/x/mobile/event/key"
 	"golang.org/x/mobile/event/lifecycle"
 	"golang.org/x/mobile/event/mouse"
@@ -51,11 +48,95 @@ var (
 	cursorPoints = []image.Point{}
 
 	generation int
-
-	tileSize   = image.Point{16, 16}
-	tileBounds = image.Rectangle{Max: tileSize}
-	boardSize  = [2]int{10, 10}
 )
+
+type Stage struct {
+	Screen   screen.Screen
+	Size     image.Point
+	TileSets []*asset.TileSet
+	TileSize image.Point
+	TexMap   []TexPos
+	TexAt    map[TexPos]screen.Texture
+}
+
+func (s *Stage) TileTex(p image.Point) screen.Texture {
+	idx := p.Y*s.Size.X + p.X
+	texp := s.TexMap[idx]
+	tex := s.TexAt[texp]
+	return tex
+}
+
+func (s *Stage) Setup() error {
+	if s.Screen == nil {
+		return fmt.Errorf("stage doesn't have screen")
+	}
+	if s.Size.X < 0 || s.Size.Y < 0 {
+		return fmt.Errorf("stage size couldn't be negative: got %v", s.Size)
+	}
+	if s.TileSize.X <= 0 || s.TileSize.Y <= 0 {
+		return fmt.Errorf("tile size needs 1 or more pixels : got %v", s.TileSize)
+	}
+	if s.Size.X*s.Size.Y != len(s.TexMap) {
+		return fmt.Errorf("texmap size different from stage size")
+	}
+	baseImgs := make([]image.Image, len(s.TileSets))
+	for i, atx := range s.TileSets {
+		img, err := loadImage(atx.File)
+		if err != nil {
+			log.Println(err)
+			img = image.White
+		}
+		baseImgs[i] = img
+	}
+	posMap := make(map[TexPos]bool)
+	for _, pos := range s.TexMap {
+		posMap[pos] = true
+	}
+	s.TexAt = make(map[TexPos]screen.Texture)
+	for pos := range posMap {
+		t, i, j := pos.T, pos.I, pos.J
+		if t >= len(s.TileSets) {
+			return fmt.Errorf("invalid tileset index: %v, only %v exists", t, len(s.TileSets))
+		}
+		ts := s.TileSets[t]
+		sz := ts.TileSize
+		src := baseImgs[t]
+		srcBound := image.Rect(i*sz, j*sz, (i+1)*sz, (j+1)*sz)
+		tile := image.NewNRGBA(image.Rect(0, 0, s.TileSize.X, s.TileSize.Y))
+		draw.NearestNeighbor.Scale(tile, tile.Rect, src, srcBound, draw.Src, nil)
+		tileTex, err := toScreenTex(s.Screen, tile)
+		if err != nil {
+			return err
+		}
+		s.TexAt[pos] = tileTex
+	}
+	return nil
+}
+
+func toScreenTex(s screen.Screen, img image.Image) (screen.Texture, error) {
+	size := img.Bounds().Max
+	tex, err := s.NewTexture(size)
+	if err != nil {
+		return nil, err
+	}
+	buf, err := s.NewBuffer(size)
+	if err != nil {
+		tex.Release()
+		return nil, err
+	}
+	draw.Copy(buf.RGBA(), image.Point{}, img, img.Bounds(), draw.Src, nil)
+	tex.Upload(image.Point{}, buf, buf.Bounds())
+	buf.Release()
+	return tex, nil
+}
+
+type Tile struct {
+	Tex TexPos
+}
+
+type TexPos struct {
+	T, I, J int
+}
 
 func loadImage(name string) (image.Image, error) {
 	f, err := os.Open(name)
@@ -79,36 +160,7 @@ func main() {
 		}
 		defer w.Release()
 
-		for _, ts := range asset.TileSets {
-			img, err := loadImage(ts.File)
-			if err != nil {
-				log.Println(err)
-			}
-			size := img.Bounds().Max
-			tex, err := s.NewTexture(size)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-			buf, err := s.NewBuffer(size)
-			if err != nil {
-				tex.Release()
-				log.Println(err)
-				return
-			}
-			draw.Draw(buf.RGBA(), img.Bounds(), img, image.Point{}, draw.Src)
-			tex.Upload(image.Point{}, buf, img.Bounds())
-			buf.Release()
-			ts.Texture = tex
-		}
-
 		var (
-			pool = &tilePool{
-				screen:         s,
-				drawTileRGBA:   drawTileRGBA,
-				drawCursorRGBA: drawCursorRGBA,
-				m:              map[image.Point]*tilePoolEntry{},
-			}
 			dragging     bool
 			paintPending bool
 			drag         image.Point
@@ -118,11 +170,34 @@ func main() {
 			sz           size.Event
 			winSize      image.Point
 		)
+		stg := &Stage{
+			Screen:   s,
+			Size:     image.Pt(3, 3),
+			TileSize: image.Pt(32, 32),
+			TileSets: []*asset.TileSet{
+				asset.TileSets["basictiles"],
+			},
+			TexMap: []TexPos{
+				{T: 0, I: 0, J: 0},
+				{T: 0, I: 1, J: 0},
+				{T: 0, I: 2, J: 0},
+				{T: 0, I: 0, J: 1},
+				{T: 0, I: 1, J: 1},
+				{T: 0, I: 2, J: 1},
+				{T: 0, I: 0, J: 2},
+				{T: 0, I: 1, J: 2},
+				{T: 0, I: 2, J: 2},
+			},
+		}
+		err = stg.Setup()
+		if err != nil {
+			log.Fatal(err)
+		}
 		cursorPos := [2]int{0, 0}
 		hoverPos := [2]int{-1, -1}
-		for y := 0; y < tileSize.Y; y++ {
-			for x := 0; x < tileSize.X; x++ {
-				if x == 0 || y == 0 || x == tileSize.X-1 || y == tileSize.Y-1 {
+		for y := 0; y < stg.TileSize.Y; y++ {
+			for x := 0; x < stg.TileSize.X; x++ {
+				if x == 0 || y == 0 || x == stg.TileSize.X-1 || y == stg.TileSize.Y-1 {
 					cursorPoints = append(cursorPoints, image.Pt(x, y))
 				}
 			}
@@ -147,8 +222,8 @@ func main() {
 					}
 					if e.Code == key.CodeRightArrow {
 						cursorPos[0]++
-						if cursorPos[0] >= boardSize[0] {
-							cursorPos[0] = boardSize[0] - 1
+						if cursorPos[0] >= stg.Size.X {
+							cursorPos[0] = stg.Size.X - 1
 						}
 					}
 					if e.Code == key.CodeUpArrow {
@@ -159,8 +234,8 @@ func main() {
 					}
 					if e.Code == key.CodeDownArrow {
 						cursorPos[1]++
-						if cursorPos[1] >= boardSize[1] {
-							cursorPos[1] = boardSize[1] - 1
+						if cursorPos[1] >= stg.Size.Y {
+							cursorPos[1] = stg.Size.Y - 1
 						}
 					}
 					if !paintPending {
@@ -171,12 +246,12 @@ func main() {
 
 			case mouse.Event:
 				p := image.Point{X: int(e.X), Y: int(e.Y)}
-				topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
-				x := (p.X + topLeft.X) / tileSize.X
-				y := (p.Y + topLeft.Y) / tileSize.Y
+				topLeft = image.Pt(offset.X-winSize.X/2+stg.TileSize.X/2*stg.Size.X, offset.Y-winSize.Y/2+stg.TileSize.Y/2*stg.Size.Y)
+				x := (p.X + topLeft.X) / stg.TileSize.X
+				y := (p.Y + topLeft.Y) / stg.TileSize.Y
 				hx := x
 				hy := y
-				if hx < 0 || hx >= boardSize[0] || hy < 0 || hy >= boardSize[1] {
+				if hx < 0 || hx >= stg.Size.X || hy < 0 || hy >= stg.Size.Y {
 					hx = -1
 					hy = -1
 				}
@@ -198,9 +273,9 @@ func main() {
 						yoff = -yoff
 					}
 					if xoff < 3 && yoff < 3 {
-						x := (p.X + topLeft.X) / tileSize.X
-						y := (p.Y + topLeft.Y) / tileSize.Y
-						if x < 0 || x >= boardSize[0] || y < 0 || y >= boardSize[1] {
+						x := (p.X + topLeft.X) / stg.TileSize.X
+						y := (p.Y + topLeft.Y) / stg.TileSize.Y
+						if x < 0 || x >= stg.Size.X || y < 0 || y >= stg.Size.Y {
 							dragging = false
 							break
 						}
@@ -237,25 +312,24 @@ func main() {
 				generation++
 				var wg sync.WaitGroup
 				drawBg(w, s, winSize)
-				topLeft = image.Pt(offset.X-winSize.X/2+tileSize.X/2*boardSize[0], offset.Y-winSize.Y/2+tileSize.Y/2*boardSize[1])
-				for y := -(topLeft.Y & 0x7f); y < winSize.Y; y += tileSize.Y {
-					for x := -(topLeft.X & 0x7f); x < winSize.X; x += tileSize.X {
+				topLeft = image.Pt(offset.X-winSize.X/2+stg.TileSize.X/2*stg.Size.X, offset.Y-winSize.Y/2+stg.TileSize.Y/2*stg.Size.Y)
+				for y := -(topLeft.Y & 0x7f); y < winSize.Y; y += stg.TileSize.Y {
+					for x := -(topLeft.X & 0x7f); x < winSize.X; x += stg.TileSize.X {
 						wg.Add(1)
-						go drawTile(&wg, w, asset.TileSets["basictiles"], topLeft, x, y)
+						go drawTile(&wg, w, stg, topLeft, x, y)
 					}
 				}
 				wg.Wait()
 				if hoverPos[0] != -1 {
 					wg.Add(1)
-					go drawHover(&wg, w, pool, topLeft, -topLeft.X+hoverPos[0]*tileSize.X, -topLeft.Y+hoverPos[1]*tileSize.Y)
+					go drawHover(&wg, w, stg, topLeft, -topLeft.X+hoverPos[0]*stg.TileSize.X, -topLeft.Y+hoverPos[1]*stg.TileSize.Y)
 					wg.Wait()
 				}
 				wg.Add(1)
-				go drawCursor(&wg, w, pool, topLeft, -topLeft.X+cursorPos[0]*tileSize.X, -topLeft.Y+cursorPos[1]*tileSize.Y)
+				go drawCursor(&wg, w, stg, topLeft, -topLeft.X+cursorPos[0]*stg.TileSize.X, -topLeft.Y+cursorPos[1]*stg.TileSize.Y)
 				wg.Wait()
 				w.Publish()
 				paintPending = false
-				pool.releaseUnused()
 
 			case size.Event:
 				sz = e
@@ -280,172 +354,83 @@ func drawBg(w screen.Window, s screen.Screen, winSize image.Point) {
 		log.Println(err)
 		return
 	}
-	m := buf.RGBA()
-	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.Copy(buf.RGBA(), image.Point{}, image.White, buf.Bounds(), draw.Src, nil)
 	tex.Upload(image.Point{}, buf, tex.Bounds())
 	buf.Release()
 	w.Copy(image.Point{}, tex, tex.Bounds(), screen.Src, nil)
 }
 
-func drawTile(wg *sync.WaitGroup, w screen.Window, ts *asset.TileSet, topLeft image.Point, x, y int) {
+func drawTile(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
 	defer wg.Done()
 	tp := image.Point{
-		(x + topLeft.X) / tileSize.X,
-		(y + topLeft.Y) / tileSize.Y,
+		(x + topLeft.X) / stg.TileSize.X,
+		(y + topLeft.Y) / stg.TileSize.Y,
 	}
-	if tp.X < 0 || tp.X >= boardSize[0] || tp.Y < 0 || tp.Y >= boardSize[1] {
+	if tp.X < 0 || tp.X >= stg.Size.X || tp.Y < 0 || tp.Y >= stg.Size.Y {
 		return
 	}
-	tex := ts.Texture
-	sz := ts.TileSize
-	maxi := tex.Size().X / sz
-	maxj := tex.Size().Y / sz
-	i := tp.X % maxi
-	j := tp.Y % maxj
-	tileBounds := image.Rect(sz*i, sz*j, sz*(i+1), sz*(j+1))
-	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Src, nil)
+	tex := stg.TileTex(tp)
+	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Src, nil)
 }
 
-func drawTileRGBA(m *image.RGBA, tp image.Point) {
-	draw.Draw(m, m.Bounds(), image.White, image.Point{}, draw.Src)
-	for _, p := range crossPoints {
-		m.SetRGBA(p.X, p.Y, crossColor)
-	}
-	d := font.Drawer{
-		Dst:  m,
-		Src:  image.Black,
-		Face: inconsolata.Regular8x16,
-		Dot: fixed.Point26_6{
-			Y: inconsolata.Regular8x16.Metrics().Ascent,
-		},
-	}
-	d.DrawString(fmt.Sprint(tp))
-}
-
-func drawCursor(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
+func drawCursor(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
 	defer wg.Done()
 	tp := image.Point{
-		(x + topLeft.X) / tileSize.X,
-		(y + topLeft.Y) / tileSize.Y,
+		(x + topLeft.X) / stg.TileSize.X,
+		(y + topLeft.Y) / stg.TileSize.Y,
 	}
-	tex, err := pool.screen.NewTexture(tileSize)
+	tex, err := stg.Screen.NewTexture(stg.TileSize)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	buf, err := pool.screen.NewBuffer(tileSize)
+	buf, err := stg.Screen.NewBuffer(stg.TileSize)
 	if err != nil {
 		tex.Release()
 		log.Println(err)
 		return
 	}
-	pool.drawCursorRGBA(buf.RGBA(), tp)
-	tex.Upload(image.Point{}, buf, tileBounds)
+	drawCursorRGBA(buf.RGBA(), tp)
+	tex.Upload(image.Point{}, buf, buf.Bounds())
 	buf.Release()
-	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Over, nil)
+	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Over, nil)
 	tex.Release()
 }
 
 func drawCursorRGBA(m *image.RGBA, tp image.Point) {
-	draw.Draw(m, m.Bounds(), image.NewUniform(color.RGBA{}), image.Point{}, draw.Src)
+	draw.Copy(m, image.Point{}, image.NewUniform(color.RGBA{}), m.Bounds(), draw.Src, nil)
 	for _, p := range cursorPoints {
 		m.SetRGBA(p.X, p.Y, cursorColor)
 	}
 }
 
-func drawHover(wg *sync.WaitGroup, w screen.Window, pool *tilePool, topLeft image.Point, x, y int) {
+func drawHover(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
 	defer wg.Done()
 	tp := image.Point{
-		(x + topLeft.X) / tileSize.X,
-		(y + topLeft.Y) / tileSize.Y,
+		(x + topLeft.X) / stg.TileSize.X,
+		(y + topLeft.Y) / stg.TileSize.Y,
 	}
-	tex, err := pool.screen.NewTexture(tileSize)
+	tex, err := stg.Screen.NewTexture(stg.TileSize)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	buf, err := pool.screen.NewBuffer(tileSize)
+	buf, err := stg.Screen.NewBuffer(stg.TileSize)
 	if err != nil {
 		tex.Release()
 		log.Println(err)
 		return
 	}
 	drawHoverRGBA(buf.RGBA(), tp)
-	tex.Upload(image.Point{}, buf, tileBounds)
+	tex.Upload(image.Point{}, buf, buf.Bounds())
 	buf.Release()
-	w.Copy(image.Point{x, y}, tex, tileBounds, screen.Over, nil)
+	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Over, nil)
 	tex.Release()
 }
 
 func drawHoverRGBA(m *image.RGBA, tp image.Point) {
-	draw.Draw(m, m.Bounds(), image.NewUniform(color.RGBA{}), image.Point{}, draw.Src)
+	draw.Copy(m, image.Point{}, image.NewUniform(color.RGBA{}), m.Bounds(), draw.Src, nil)
 	for _, p := range cursorPoints {
 		m.SetRGBA(p.X, p.Y, hoverColor)
-	}
-}
-
-type tilePoolEntry struct {
-	tex screen.Texture
-	gen int
-}
-
-type tilePool struct {
-	screen         screen.Screen
-	drawTileRGBA   func(*image.RGBA, image.Point)
-	drawCursorRGBA func(*image.RGBA, image.Point)
-
-	mu sync.Mutex
-	m  map[image.Point]*tilePoolEntry
-}
-
-func (p *tilePool) get(tp image.Point) (screen.Texture, error) {
-	p.mu.Lock()
-	v, ok := p.m[tp]
-	if v != nil {
-		v.gen = generation
-	}
-	p.mu.Unlock()
-
-	if ok {
-		return v.tex, nil
-	}
-	tex, err := p.screen.NewTexture(tileSize)
-	if err != nil {
-		return nil, err
-	}
-	buf, err := p.screen.NewBuffer(tileSize)
-	if err != nil {
-		tex.Release()
-		return nil, err
-	}
-	if tp.X >= 0 && tp.X < boardSize[0] && tp.Y >= 0 && tp.Y < boardSize[1] {
-		p.drawTileRGBA(buf.RGBA(), tp)
-	}
-	tex.Upload(image.Point{}, buf, tileBounds)
-	buf.Release()
-
-	p.mu.Lock()
-	p.m[tp] = &tilePoolEntry{
-		tex: tex,
-		gen: generation,
-	}
-	n := len(p.m)
-	p.mu.Unlock()
-
-	fmt.Printf("%4d textures; created  %v\n", n, tp)
-	return tex, nil
-}
-
-func (p *tilePool) releaseUnused() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	for tp, v := range p.m {
-		if v.gen == generation {
-			continue
-		}
-		v.tex.Release()
-		delete(p.m, tp)
-		fmt.Printf("%4d textures; released %v\n", len(p.m), tp)
 	}
 }

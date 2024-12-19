@@ -1,13 +1,13 @@
 package asset
 
-import "golang.org/x/exp/shiny/screen"
+import "image"
 
 type TileSet struct {
 	Author   string
 	License  string
 	File     string
 	TileSize int
-	Texture  screen.Texture
+	BaseImg  image.Image
 }
 
 var basictiles = &TileSet{
