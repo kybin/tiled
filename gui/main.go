@@ -48,20 +48,25 @@ var (
 	cursorPoints = []image.Point{}
 )
 
+type TextureLayer []TexPos
+
 type Stage struct {
-	Screen   screen.Screen
-	Size     image.Point
-	TileSets []*asset.TileSet
-	TileSize image.Point
-	TexMap   []TexPos
-	TexAt    map[TexPos]screen.Texture
+	Screen    screen.Screen
+	Size      image.Point
+	TileSets  []*asset.TileSet
+	TileSize  image.Point
+	TexLayers []TextureLayer // from bg to fg
+	TexAt     map[TexPos]screen.Texture
 }
 
-func (s *Stage) TileTex(p image.Point) screen.Texture {
+func (s *Stage) TileTexs(p image.Point) []screen.Texture {
 	idx := p.Y*s.Size.X + p.X
-	texp := s.TexMap[idx]
-	tex := s.TexAt[texp]
-	return tex
+	texs := make([]screen.Texture, 0, len(s.TexLayers))
+	for _, layer := range s.TexLayers {
+		texp := layer[idx]
+		texs = append(texs, s.TexAt[texp])
+	}
+	return texs
 }
 
 func (s *Stage) Setup() error {
@@ -74,8 +79,10 @@ func (s *Stage) Setup() error {
 	if s.TileSize.X <= 0 || s.TileSize.Y <= 0 {
 		return fmt.Errorf("tile size needs 1 or more pixels : got %v", s.TileSize)
 	}
-	if s.Size.X*s.Size.Y != len(s.TexMap) {
-		return fmt.Errorf("texmap size different from stage size")
+	for i, layer := range s.TexLayers {
+		if s.Size.X*s.Size.Y != len(layer) {
+			return fmt.Errorf("tex layer %d size different from stage size", i)
+		}
 	}
 	baseImgs := make([]image.Image, len(s.TileSets))
 	for i, atx := range s.TileSets {
@@ -87,8 +94,10 @@ func (s *Stage) Setup() error {
 		baseImgs[i] = img
 	}
 	posMap := make(map[TexPos]bool)
-	for _, pos := range s.TexMap {
-		posMap[pos] = true
+	for _, layer := range s.TexLayers {
+		for _, pos := range layer {
+			posMap[pos] = true
+		}
 	}
 	s.TexAt = make(map[TexPos]screen.Texture)
 	for pos := range posMap {
@@ -176,19 +185,35 @@ func main() {
 				asset.TileSets["basictiles"],
 				asset.TileSets["overworld"],
 			},
-			TexMap: []TexPos{
-				{T: 0, I: 0, J: 0},
-				{T: 0, I: 1, J: 0},
-				{T: 0, I: 2, J: 0},
-				{T: 0, I: 0, J: 1},
-				{T: 0, I: 1, J: 1},
-				{T: 0, I: 2, J: 1},
-				{T: 0, I: 0, J: 2},
-				{T: 0, I: 1, J: 2},
-				{T: 0, I: 2, J: 2},
-				{T: 1, I: 0, J: 0},
-				{T: 1, I: 0, J: 1},
-				{T: 1, I: 0, J: 2},
+			TexLayers: []TextureLayer{
+				TextureLayer{
+					{T: 0, I: 0, J: 0},
+					{T: 0, I: 1, J: 0},
+					{T: 0, I: 2, J: 0},
+					{T: 0, I: 0, J: 1},
+					{T: 0, I: 1, J: 1},
+					{T: 0, I: 2, J: 1},
+					{T: 0, I: 0, J: 2},
+					{T: 0, I: 1, J: 2},
+					{T: 0, I: 2, J: 2},
+					{T: 1, I: 0, J: 0},
+					{T: 1, I: 0, J: 1},
+					{T: 1, I: 0, J: 2},
+				},
+				TextureLayer{
+					{T: 1, I: 0, J: 0},
+					{T: 1, I: 1, J: 0},
+					{T: 1, I: 2, J: 0},
+					{T: 1, I: 0, J: 1},
+					{T: 1, I: 1, J: 1},
+					{T: 1, I: 2, J: 1},
+					{T: 1, I: 0, J: 2},
+					{T: 1, I: 1, J: 2},
+					{T: 1, I: 2, J: 2},
+					{T: 0, I: 0, J: 0},
+					{T: 0, I: 0, J: 1},
+					{T: 0, I: 0, J: 2},
+				},
 			},
 		}
 		err = stg.Setup()
@@ -366,8 +391,10 @@ func drawTile(wg *sync.WaitGroup, w screen.Window, stg *Stage, topLeft image.Poi
 	if tp.X < 0 || tp.X >= stg.Size.X || tp.Y < 0 || tp.Y >= stg.Size.Y {
 		return
 	}
-	tex := stg.TileTex(tp)
-	w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Src, nil)
+	texs := stg.TileTexs(tp)
+	for _, tex := range texs {
+		w.Copy(image.Point{x, y}, tex, tex.Bounds(), screen.Over, nil)
+	}
 }
 
 func drawCursor(w screen.Window, stg *Stage, topLeft image.Point, x, y int) {
