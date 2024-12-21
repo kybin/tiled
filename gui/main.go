@@ -46,8 +46,6 @@ var (
 	cursorColor  = color.RGBA{64, 192, 0, 255}
 	hoverColor   = color.RGBA{192, 192, 192, 255}
 	cursorPoints = []image.Point{}
-
-	generation int
 )
 
 type Stage struct {
@@ -313,7 +311,6 @@ func main() {
 				}
 
 			case paint.Event:
-				generation++
 				var wg sync.WaitGroup
 				drawBg(w, s, winSize)
 				topLeft = image.Pt(offset.X-winSize.X/2+stg.TileSize.X/2*stg.Size.X, offset.Y-winSize.Y/2+stg.TileSize.Y/2*stg.Size.Y)
