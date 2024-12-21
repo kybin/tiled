@@ -291,35 +291,25 @@ func main() {
 					}
 				}
 				if e.Button == mouse.ButtonLeft && e.Direction == mouse.DirRelease {
-					xoff := dragOffset.X
-					if xoff < 0 {
-						xoff = -xoff
-					}
-					yoff := dragOffset.Y
-					if yoff < 0 {
-						yoff = -yoff
-					}
-					if xoff < 3 && yoff < 3 {
-						x := (p.X + topLeft.X) / stg.TileSize.X
-						y := (p.Y + topLeft.Y) / stg.TileSize.Y
-						if x < 0 || x >= stg.Size.X || y < 0 || y >= stg.Size.Y {
-							dragging = false
-							break
-						}
-						cursorPos[0] = x
-						cursorPos[1] = y
-						if !paintPending {
-							paintPending = true
-							w.Send(paint.Event{})
-						}
-						dragging = false
+					x := (p.X + topLeft.X) / stg.TileSize.X
+					y := (p.Y + topLeft.Y) / stg.TileSize.Y
+					if x < 0 || x >= stg.Size.X || y < 0 || y >= stg.Size.Y {
 						break
 					}
+					cursorPos[0] = x
+					cursorPos[1] = y
+					if !paintPending {
+						paintPending = true
+						w.Send(paint.Event{})
+					}
+					break
+				}
+				if e.Button == mouse.ButtonMiddle && e.Direction == mouse.DirRelease {
 					dragging = false
 					dragOffset = image.Point{}
 					break
 				}
-				if e.Button == mouse.ButtonLeft && e.Direction != mouse.DirNone {
+				if e.Button == mouse.ButtonMiddle && e.Direction != mouse.DirNone {
 					dragging = e.Direction == mouse.DirPress
 					drag = p
 					dragOffset = image.Point{}
