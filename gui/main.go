@@ -7,9 +7,10 @@ import (
 	_ "image/png"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 
-	"github.com/kybin/tiled/gui/asset"
+	"github.com/BurntSushi/toml"
 	"golang.org/x/exp/shiny/driver"
 	"golang.org/x/exp/shiny/screen"
 	"golang.org/x/image/draw"
@@ -53,7 +54,7 @@ type TextureLayer []TexPos
 type Stage struct {
 	Screen    screen.Screen
 	Size      image.Point
-	TileSets  []*asset.TileSet
+	TileSets  []*TileSet
 	TileSize  image.Point
 	TexLayers []TextureLayer // from bg to fg
 	TexAt     map[TexPos]screen.Texture
@@ -67,6 +68,16 @@ func (s *Stage) TileTexs(p image.Point) []screen.Texture {
 		texs = append(texs, s.TexAt[texp])
 	}
 	return texs
+}
+
+type TileSet struct {
+	Reference string
+	Link      string
+	Unzip     string
+	Author    string
+	License   string
+	File      string
+	TileSize  int
 }
 
 func (s *Stage) Setup() error {
@@ -86,7 +97,7 @@ func (s *Stage) Setup() error {
 	}
 	baseImgs := make([]image.Image, len(s.TileSets))
 	for i, atx := range s.TileSets {
-		img, err := loadImage(atx.File)
+		img, err := loadImage(filepath.Join("asset", atx.File))
 		if err != nil {
 			log.Println(err)
 			img = image.White
@@ -177,13 +188,23 @@ func main() {
 			sz           size.Event
 			winSize      image.Point
 		)
+		f, err := os.Open("asset/tileset.toml")
+		if err != nil {
+			log.Fatal(err)
+		}
+		d := toml.NewDecoder(f)
+		tilesets := make(map[string]*TileSet)
+		_, err = d.Decode(&tilesets)
+		if err != nil {
+			log.Fatal(err)
+		}
 		stg := &Stage{
 			Screen:   s,
 			Size:     image.Pt(3, 4),
 			TileSize: image.Pt(32, 32),
-			TileSets: []*asset.TileSet{
-				asset.TileSets["basictiles"],
-				asset.TileSets["overworld"],
+			TileSets: []*TileSet{
+				tilesets["basictiles"],
+				tilesets["overworld"],
 			},
 			TexLayers: []TextureLayer{
 				TextureLayer{
