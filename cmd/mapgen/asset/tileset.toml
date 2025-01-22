@@ -1,0 +1,17 @@
+[basictiles]
+Reference = "https://opengameart.org/content/tiny-16-basic"
+Link =      "https://opengameart.org/sites/default/files/basictiles_2.png"
+Author =    "Lanea Zimmerman"
+License =   "anti-DRM clause of CC-BY 3.0"
+File =      "basictiles.png"
+TileSize =  16
+
+[overworld]
+Reference = "https://opengameart.org/content/zelda-like-tilesets-and-sprites"
+Link =      "https://opengameart.org/sites/default/files/gfx_3.zip"
+Unzip =     "gfx/Overworld.png"
+Author =    "ArMM1998"
+License =   "CC0"
+File =      "overworld.png"
+TileSize =  16
+
