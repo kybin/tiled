@@ -45,7 +45,7 @@ func loadImage(name string) (image.Image, error) {
 	return img, nil
 }
 
-type Stage struct {
+type Board struct {
 	node.LeafEmbed
 	TileCount   image.Point
 	TileSets    []*TileSet
@@ -63,7 +63,7 @@ type Stage struct {
 	Offset      image.Point
 }
 
-func NewStage() *Stage {
+func NewBoard() *Board {
 	f, err := os.Open("asset/tileset.toml")
 	if err != nil {
 		log.Fatal(err)
@@ -74,7 +74,7 @@ func NewStage() *Stage {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := &Stage{
+	w := &Board{
 		TileCount: image.Pt(3, 4),
 		TileSize:  image.Pt(32, 32),
 		TileSets: []*TileSet{
@@ -115,24 +115,24 @@ func NewStage() *Stage {
 		CursorColor: color.NRGBA{64, 192, 0, 255},
 		HoverColor:  color.NRGBA{192, 192, 192, 255},
 	}
-	s.Wrapper = s
-	return s
+	w.Wrapper = w
+	return w
 }
 
-func (s *Stage) Setup() error {
-	if s.TileCount.X < 0 || s.TileCount.Y < 0 {
-		return fmt.Errorf("stage size couldn't be negative: got %v", s.TileCount)
+func (w *Board) Setup() error {
+	if w.TileCount.X < 0 || w.TileCount.Y < 0 {
+		return fmt.Errorf("stage size couldn't be negative: got %v", w.TileCount)
 	}
-	if s.TileSize.X <= 0 || s.TileSize.Y <= 0 {
-		return fmt.Errorf("tile size needs 1 or more pixels : got %v", s.TileSize)
+	if w.TileSize.X <= 0 || w.TileSize.Y <= 0 {
+		return fmt.Errorf("tile size needs 1 or more pixels : got %v", w.TileSize)
 	}
-	for i, layer := range s.Layers {
-		if s.TileCount.X*s.TileCount.Y != len(layer) {
+	for i, layer := range w.Layers {
+		if w.TileCount.X*w.TileCount.Y != len(layer) {
 			return fmt.Errorf("tex layer %d size different from stage size", i)
 		}
 	}
-	baseImgs := make([]image.Image, len(s.TileSets))
-	for i, atx := range s.TileSets {
+	baseImgs := make([]image.Image, len(w.TileSets))
+	for i, atx := range w.TileSets {
 		img, err := loadImage(filepath.Join("asset", atx.File))
 		if err != nil {
 			log.Println(err)
@@ -141,75 +141,75 @@ func (s *Stage) Setup() error {
 		baseImgs[i] = img
 	}
 	posMap := make(map[SrcPos]bool)
-	for _, layer := range s.Layers {
+	for _, layer := range w.Layers {
 		for _, pos := range layer {
 			posMap[pos] = true
 		}
 	}
-	s.ImgAt = make(map[SrcPos]image.Image)
+	w.ImgAt = make(map[SrcPos]image.Image)
 	for pos := range posMap {
 		t, i, j := pos.T, pos.I, pos.J
-		if t >= len(s.TileSets) {
-			return fmt.Errorf("invalid tileset index: %v, only %v exists", t, len(s.TileSets))
+		if t >= len(w.TileSets) {
+			return fmt.Errorf("invalid tileset index: %v, only %v exists", t, len(w.TileSets))
 		}
-		ts := s.TileSets[t]
+		ts := w.TileSets[t]
 		sz := ts.TileSize
 		src := baseImgs[t]
 		srcBound := image.Rect(i*sz, j*sz, (i+1)*sz, (j+1)*sz)
-		tileImg := image.NewNRGBA(image.Rect(0, 0, s.TileSize.X, s.TileSize.Y))
+		tileImg := image.NewNRGBA(image.Rect(0, 0, w.TileSize.X, w.TileSize.Y))
 		draw.NearestNeighbor.Scale(tileImg, tileImg.Rect, src, srcBound, draw.Src, nil)
-		s.ImgAt[pos] = tileImg
+		w.ImgAt[pos] = tileImg
 	}
 	cursorPoints := make([]image.Point, 0)
-	for y := 0; y < s.TileSize.Y; y++ {
-		for x := 0; x < s.TileSize.X; x++ {
-			if x == 0 || y == 0 || x == s.TileSize.X-1 || y == s.TileSize.Y-1 {
+	for y := 0; y < w.TileSize.Y; y++ {
+		for x := 0; x < w.TileSize.X; x++ {
+			if x == 0 || y == 0 || x == w.TileSize.X-1 || y == w.TileSize.Y-1 {
 				cursorPoints = append(cursorPoints, image.Pt(x, y))
 			}
 		}
 	}
-	cs := image.NewNRGBA(image.Rect(0, 0, s.TileSize.X, s.TileSize.Y))
+	cs := image.NewNRGBA(image.Rect(0, 0, w.TileSize.X, w.TileSize.Y))
 	for _, p := range cursorPoints {
-		cs.SetNRGBA(p.X, p.Y, s.CursorColor)
+		cs.SetNRGBA(p.X, p.Y, w.CursorColor)
 	}
-	s.CursorImg = cs
-	hv := image.NewNRGBA(image.Rect(0, 0, s.TileSize.X, s.TileSize.Y))
+	w.CursorImg = cs
+	hv := image.NewNRGBA(image.Rect(0, 0, w.TileSize.X, w.TileSize.Y))
 	for _, p := range cursorPoints {
-		hv.SetNRGBA(p.X, p.Y, s.HoverColor)
+		hv.SetNRGBA(p.X, p.Y, w.HoverColor)
 	}
-	s.HoverImg = hv
+	w.HoverImg = hv
 	return nil
 }
 
-func (s *Stage) TileImgs(p image.Point) []image.Image {
-	idx := p.Y*s.TileCount.X + p.X
-	imgs := make([]image.Image, 0, len(s.Layers))
-	for _, layer := range s.Layers {
+func (w *Board) TileImgs(p image.Point) []image.Image {
+	idx := p.Y*w.TileCount.X + p.X
+	imgs := make([]image.Image, 0, len(w.Layers))
+	for _, layer := range w.Layers {
 		ip := layer[idx]
-		imgs = append(imgs, s.ImgAt[ip])
+		imgs = append(imgs, w.ImgAt[ip])
 	}
 	return imgs
 }
 
-func (s *Stage) PaintBase(ctx *node.PaintBaseContext, origin image.Point) error {
-	s.Marks.UnmarkNeedsPaintBase()
-	r := s.Rect.Add(origin)
-	topLeft := image.Pt(s.Offset.X-s.Rect.Max.X/2+s.TileSize.X/2*s.TileCount.X, s.Offset.Y-s.Rect.Max.Y/2+s.TileSize.Y/2*s.TileCount.Y)
+func (w *Board) PaintBase(ctx *node.PaintBaseContext, origin image.Point) error {
+	w.Marks.UnmarkNeedsPaintBase()
+	r := w.Rect.Add(origin)
+	topLeft := image.Pt(w.Offset.X-w.Rect.Max.X/2+w.TileSize.X/2*w.TileCount.X, w.Offset.Y-w.Rect.Max.Y/2+w.TileSize.Y/2*w.TileCount.Y)
 	var wg sync.WaitGroup
-	for y := -(topLeft.Y & 0x7f); y < s.Rect.Max.Y; y += s.TileSize.Y {
-		for x := -(topLeft.X & 0x7f); x < s.Rect.Max.X; x += s.TileSize.X {
+	for y := -(topLeft.Y & 0x7f); y < w.Rect.Max.Y; y += w.TileSize.Y {
+		for x := -(topLeft.X & 0x7f); x < w.Rect.Max.X; x += w.TileSize.X {
 			wg.Add(1)
 			go func(x, y int) {
 				defer wg.Done()
 				ip := image.Point{
-					(x + topLeft.X) / s.TileSize.X,
-					(y + topLeft.Y) / s.TileSize.Y,
+					(x + topLeft.X) / w.TileSize.X,
+					(y + topLeft.Y) / w.TileSize.Y,
 				}
-				if ip.X < 0 || ip.X >= s.TileCount.X || ip.Y < 0 || ip.Y >= s.TileCount.Y {
+				if ip.X < 0 || ip.X >= w.TileCount.X || ip.Y < 0 || ip.Y >= w.TileCount.Y {
 					return
 				}
 				dr := r.Add(image.Point{x, y})
-				imgs := s.TileImgs(ip)
+				imgs := w.TileImgs(ip)
 				for _, m := range imgs {
 					draw.Draw(ctx.Dst, dr, m, image.Point{}, draw.Over)
 				}
@@ -217,90 +217,90 @@ func (s *Stage) PaintBase(ctx *node.PaintBaseContext, origin image.Point) error 
 		}
 	}
 	wg.Wait()
-	if s.HoverPos[0] != -1 {
-		dr := r.Add(image.Point{-topLeft.X + s.HoverPos[0]*s.TileSize.X, -topLeft.Y + s.HoverPos[1]*s.TileSize.Y})
-		draw.Draw(ctx.Dst, dr, s.HoverImg, image.Point{}, draw.Over)
+	if w.HoverPos[0] != -1 {
+		dr := r.Add(image.Point{-topLeft.X + w.HoverPos[0]*w.TileSize.X, -topLeft.Y + w.HoverPos[1]*w.TileSize.Y})
+		draw.Draw(ctx.Dst, dr, w.HoverImg, image.Point{}, draw.Over)
 	}
-	dr := r.Add(image.Point{-topLeft.X + s.CursorPos[0]*s.TileSize.X, -topLeft.Y + s.CursorPos[1]*s.TileSize.Y})
-	draw.Draw(ctx.Dst, dr, s.CursorImg, image.Point{}, draw.Over)
+	dr := r.Add(image.Point{-topLeft.X + w.CursorPos[0]*w.TileSize.X, -topLeft.Y + w.CursorPos[1]*w.TileSize.Y})
+	draw.Draw(ctx.Dst, dr, w.CursorImg, image.Point{}, draw.Over)
 	return nil
 }
 
-func (s *Stage) OnInputEvent(e any, origin image.Point) node.EventHandled {
+func (w *Board) OnInputEvent(e any, origin image.Point) node.EventHandled {
 	switch e := e.(type) {
 	case node.KeyEvent:
 		if e.Direction == key.DirPress {
 			if e.Code == key.CodeLeftArrow {
-				s.CursorPos[0]--
-				if s.CursorPos[0] < 0 {
-					s.CursorPos[0] = 0
+				w.CursorPos[0]--
+				if w.CursorPos[0] < 0 {
+					w.CursorPos[0] = 0
 				}
-				s.Mark(node.MarkNeedsPaintBase)
+				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 			if e.Code == key.CodeRightArrow {
-				s.CursorPos[0]++
-				if s.CursorPos[0] >= s.TileCount.X {
-					s.CursorPos[0] = s.TileCount.X - 1
+				w.CursorPos[0]++
+				if w.CursorPos[0] >= w.TileCount.X {
+					w.CursorPos[0] = w.TileCount.X - 1
 				}
-				s.Mark(node.MarkNeedsPaintBase)
+				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 			if e.Code == key.CodeUpArrow {
-				s.CursorPos[1]--
-				if s.CursorPos[1] < 0 {
-					s.CursorPos[1] = 0
+				w.CursorPos[1]--
+				if w.CursorPos[1] < 0 {
+					w.CursorPos[1] = 0
 				}
-				s.Mark(node.MarkNeedsPaintBase)
+				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 			if e.Code == key.CodeDownArrow {
-				s.CursorPos[1]++
-				if s.CursorPos[1] >= s.TileCount.Y {
-					s.CursorPos[1] = s.TileCount.Y - 1
+				w.CursorPos[1]++
+				if w.CursorPos[1] >= w.TileCount.Y {
+					w.CursorPos[1] = w.TileCount.Y - 1
 				}
-				s.Mark(node.MarkNeedsPaintBase)
+				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 		}
 	case mouse.Event:
 		p := image.Point{X: int(e.X), Y: int(e.Y)}.Sub(origin)
-		topLeft := image.Pt(s.Offset.X-s.Rect.Max.X/2+s.TileSize.X/2*s.TileCount.X, s.Offset.Y-s.Rect.Max.Y/2+s.TileSize.Y/2*s.TileCount.Y)
-		x := (p.X + topLeft.X) / s.TileSize.X
-		y := (p.Y + topLeft.Y) / s.TileSize.Y
+		topLeft := image.Pt(w.Offset.X-w.Rect.Max.X/2+w.TileSize.X/2*w.TileCount.X, w.Offset.Y-w.Rect.Max.Y/2+w.TileSize.Y/2*w.TileCount.Y)
+		x := (p.X + topLeft.X) / w.TileSize.X
+		y := (p.Y + topLeft.Y) / w.TileSize.Y
 		hx := x
 		hy := y
-		if hx < 0 || hx >= s.TileCount.X || hy < 0 || hy >= s.TileCount.Y {
+		if hx < 0 || hx >= w.TileCount.X || hy < 0 || hy >= w.TileCount.Y {
 			hx = -1
 			hy = -1
 		}
-		if hx != s.HoverPos[0] || hy != s.HoverPos[1] {
-			s.HoverPos[0] = hx
-			s.HoverPos[1] = hy
-			s.Mark(node.MarkNeedsPaintBase)
+		if hx != w.HoverPos[0] || hy != w.HoverPos[1] {
+			w.HoverPos[0] = hx
+			w.HoverPos[1] = hy
+			w.Mark(node.MarkNeedsPaintBase)
 		}
 		if e.Button == mouse.ButtonLeft && e.Direction == mouse.DirRelease {
-			if x < 0 || x >= s.TileCount.X || y < 0 || y >= s.TileCount.Y {
+			if x < 0 || x >= w.TileCount.X || y < 0 || y >= w.TileCount.Y {
 				break
 			}
-			if x != s.CursorPos[0] || y != s.CursorPos[1] {
-				s.CursorPos[0] = x
-				s.CursorPos[1] = y
-				s.Mark(node.MarkNeedsPaintBase)
+			if x != w.CursorPos[0] || y != w.CursorPos[1] {
+				w.CursorPos[0] = x
+				w.CursorPos[1] = y
+				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 		}
 		if e.Button == mouse.ButtonMiddle && e.Direction != mouse.DirNone {
-			s.Dragging = e.Direction == mouse.DirPress
-			s.DragFrom = p
+			w.Dragging = e.Direction == mouse.DirPress
+			w.DragFrom = p
 			break
 		}
-		if !s.Dragging {
+		if !w.Dragging {
 			break
 		}
-		s.Offset = s.Offset.Sub(p.Sub(s.DragFrom))
-		s.DragFrom = p
-		s.Mark(node.MarkNeedsPaintBase)
+		w.Offset = w.Offset.Sub(p.Sub(w.DragFrom))
+		w.DragFrom = p
+		w.Mark(node.MarkNeedsPaintBase)
 	}
 	return node.Handled
 }

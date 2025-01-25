@@ -62,13 +62,13 @@ func main() {
 				),
 			),
 		)
-		stg := NewStage()
-		err := stg.Setup()
+		board := NewBoard()
+		err := board.Setup()
 		if err != nil {
 			log.Fatal(err)
 		}
 		body := NewUniform(color.RGBA{255, 255, 255, 255},
-			stg,
+			board,
 		)
 		main := widget.NewFlow(widget.AxisHorizontal,
 			stretch(widget.NewSheet(side), 0),
