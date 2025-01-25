@@ -348,7 +348,6 @@ func (m *ContainerEmbed) OnLifecycleEvent(e lifecycle.Event) {
 func (m *ContainerEmbed) OnInputEvent(e interface{}, origin image.Point) EventHandled {
 	origin = origin.Add(m.Rect.Min)
 	var p image.Point
-	var worldEvent bool
 	switch e := e.(type) {
 	case gesture.Event:
 		p = image.Point{
@@ -360,14 +359,13 @@ func (m *ContainerEmbed) OnInputEvent(e interface{}, origin image.Point) EventHa
 			X: int(e.X) - origin.X,
 			Y: int(e.Y) - origin.Y,
 		}
-	case key.Event:
-		worldEvent = true
-		p = image.Point{}
+	case KeyEvent:
+		p = e.Pos.Sub(origin)
 	}
 	// Iterate backwards. Later children have priority over earlier children,
 	// as later ones are usually drawn over earlier ones.
 	for c := m.LastChild; c != nil; c = c.PrevSibling {
-		if (worldEvent || p.In(c.Rect)) && c.Wrapper.OnInputEvent(e, origin) == Handled {
+		if p.In(c.Rect) && c.Wrapper.OnInputEvent(e, origin) == Handled {
 			return Handled
 		}
 	}
@@ -514,3 +512,8 @@ func (m Marks) NeedsPaintBase() bool     { return m&MarkNeedsPaintBase != 0 }
 func (m *Marks) UnmarkNeedsMeasureLayout() { *m &^= MarkNeedsMeasureLayout }
 func (m *Marks) UnmarkNeedsPaint()         { *m &^= MarkNeedsPaint }
 func (m *Marks) UnmarkNeedsPaintBase()     { *m &^= MarkNeedsPaintBase }
+
+type KeyEvent struct {
+	key.Event
+	Pos image.Point
+}

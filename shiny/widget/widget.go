@@ -92,7 +92,7 @@ func RunWindow(s screen.Screen, root node.Node, opts *RunWindowOptions) error {
 	// TODO: if every package that uses package screen should basically
 	// throttle like this, should it be provided at a lower level?
 	paintPending := false
-
+	mousePos := image.Point{0, 0}
 	gef := gesture.EventFilter{EventDeque: w}
 	for {
 		e := w.NextEvent()
@@ -108,11 +108,17 @@ func RunWindow(s screen.Screen, root node.Node, opts *RunWindowOptions) error {
 				return nil
 			}
 
-		case gesture.Event, mouse.Event:
+		case gesture.Event:
+			root.OnInputEvent(e, image.Point{})
+
+		case mouse.Event:
+			mousePos = image.Point{int(e.X), int(e.Y)}
 			root.OnInputEvent(e, image.Point{})
 
 		case key.Event:
-			root.OnInputEvent(e, image.Point{})
+			k := node.KeyEvent{Event: e}
+			k.Pos = mousePos
+			root.OnInputEvent(k, image.Point{})
 
 		case paint.Event:
 			ctx := &node.PaintContext{

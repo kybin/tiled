@@ -228,7 +228,7 @@ func (s *Stage) PaintBase(ctx *node.PaintBaseContext, origin image.Point) error 
 
 func (s *Stage) OnInputEvent(e any, origin image.Point) node.EventHandled {
 	switch e := e.(type) {
-	case key.Event:
+	case node.KeyEvent:
 		if e.Direction == key.DirPress {
 			if e.Code == key.CodeLeftArrow {
 				s.CursorPos[0]--
