@@ -2,6 +2,8 @@ module github.com/kybin/tiled
 
 go 1.22.1
 
+replace golang.org/x/exp/shiny => ./shiny
+
 require (
 	golang.org/x/exp/shiny v0.0.0-20250106191152-7588d65b2ba8
 	golang.org/x/image v0.23.0
