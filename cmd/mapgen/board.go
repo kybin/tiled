@@ -54,8 +54,8 @@ type Board struct {
 	ImgAt       map[SrcPos]image.Image
 	CursorImg   image.Image
 	HoverImg    image.Image
-	CursorPos   [2]int
-	HoverPos    [2]int
+	CursorPos   image.Point
+	HoverPos    image.Point
 	CursorColor color.NRGBA
 	HoverColor  color.NRGBA
 	DragFrom    image.Point
@@ -111,7 +111,7 @@ func NewBoard() *Board {
 				{T: 0, I: 0, J: 2},
 			},
 		},
-		HoverPos:    [2]int{-1, -1},
+		HoverPos:    image.Pt(-1, -1),
 		CursorColor: color.NRGBA{64, 192, 0, 255},
 		HoverColor:  color.NRGBA{192, 192, 192, 255},
 	}
@@ -217,11 +217,11 @@ func (w *Board) PaintBase(ctx *node.PaintBaseContext, origin image.Point) error 
 		}
 	}
 	wg.Wait()
-	if w.HoverPos[0] != -1 {
-		dr := r.Add(image.Point{-topLeft.X + w.HoverPos[0]*w.TileSize.X, -topLeft.Y + w.HoverPos[1]*w.TileSize.Y})
+	if w.HoverPos.X != -1 {
+		dr := r.Add(image.Point{-topLeft.X + w.HoverPos.X*w.TileSize.X, -topLeft.Y + w.HoverPos.Y*w.TileSize.Y})
 		draw.Draw(ctx.Dst, dr, w.HoverImg, image.Point{}, draw.Over)
 	}
-	dr := r.Add(image.Point{-topLeft.X + w.CursorPos[0]*w.TileSize.X, -topLeft.Y + w.CursorPos[1]*w.TileSize.Y})
+	dr := r.Add(image.Point{-topLeft.X + w.CursorPos.X*w.TileSize.X, -topLeft.Y + w.CursorPos.Y*w.TileSize.Y})
 	draw.Draw(ctx.Dst, dr, w.CursorImg, image.Point{}, draw.Over)
 	return nil
 }
@@ -231,33 +231,33 @@ func (w *Board) OnInputEvent(e any, origin image.Point) node.EventHandled {
 	case node.KeyEvent:
 		if e.Direction == key.DirPress {
 			if e.Code == key.CodeLeftArrow {
-				w.CursorPos[0]--
-				if w.CursorPos[0] < 0 {
-					w.CursorPos[0] = 0
+				w.CursorPos.X--
+				if w.CursorPos.X < 0 {
+					w.CursorPos.X = 0
 				}
 				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 			if e.Code == key.CodeRightArrow {
-				w.CursorPos[0]++
-				if w.CursorPos[0] >= w.TileCount.X {
-					w.CursorPos[0] = w.TileCount.X - 1
+				w.CursorPos.X++
+				if w.CursorPos.X >= w.TileCount.X {
+					w.CursorPos.X = w.TileCount.X - 1
 				}
 				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 			if e.Code == key.CodeUpArrow {
-				w.CursorPos[1]--
-				if w.CursorPos[1] < 0 {
-					w.CursorPos[1] = 0
+				w.CursorPos.Y--
+				if w.CursorPos.Y < 0 {
+					w.CursorPos.Y = 0
 				}
 				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
 			if e.Code == key.CodeDownArrow {
-				w.CursorPos[1]++
-				if w.CursorPos[1] >= w.TileCount.Y {
-					w.CursorPos[1] = w.TileCount.Y - 1
+				w.CursorPos.Y++
+				if w.CursorPos.Y >= w.TileCount.Y {
+					w.CursorPos.Y = w.TileCount.Y - 1
 				}
 				w.Mark(node.MarkNeedsPaintBase)
 				break
@@ -274,18 +274,18 @@ func (w *Board) OnInputEvent(e any, origin image.Point) node.EventHandled {
 			hx = -1
 			hy = -1
 		}
-		if hx != w.HoverPos[0] || hy != w.HoverPos[1] {
-			w.HoverPos[0] = hx
-			w.HoverPos[1] = hy
+		if hx != w.HoverPos.X || hy != w.HoverPos.Y {
+			w.HoverPos.X = hx
+			w.HoverPos.Y = hy
 			w.Mark(node.MarkNeedsPaintBase)
 		}
 		if e.Button == mouse.ButtonLeft && e.Direction == mouse.DirRelease {
 			if x < 0 || x >= w.TileCount.X || y < 0 || y >= w.TileCount.Y {
 				break
 			}
-			if x != w.CursorPos[0] || y != w.CursorPos[1] {
-				w.CursorPos[0] = x
-				w.CursorPos[1] = y
+			if x != w.CursorPos.X || y != w.CursorPos.Y {
+				w.CursorPos.X = x
+				w.CursorPos.Y = y
 				w.Mark(node.MarkNeedsPaintBase)
 				break
 			}
