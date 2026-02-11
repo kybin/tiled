@@ -22,7 +22,8 @@ type World struct {
 
 func NewWorld() *World {
 	w := &World{
-		Map: make(map[image.Point]*Tile),
+		Bound: image.Rect(0, 0, layoutWidth/tileSize, layoutHeight/tileSize),
+		Map:   make(map[image.Point]*Tile),
 	}
 	return w
 }
@@ -75,17 +76,21 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
+	p := g.Char.Pos
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		g.Char.Pos = g.Char.Pos.Add(image.Pt(-1, 0))
+		p = p.Add(image.Pt(-1, 0))
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		g.Char.Pos = g.Char.Pos.Add(image.Pt(1, 0))
+		p = p.Add(image.Pt(1, 0))
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-		g.Char.Pos = g.Char.Pos.Add(image.Pt(0, -1))
+		p = p.Add(image.Pt(0, -1))
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-		g.Char.Pos = g.Char.Pos.Add(image.Pt(0, 1))
+		p = p.Add(image.Pt(0, 1))
+	}
+	if p.In(g.World.Bound) {
+		g.Char.Pos = p
 	}
 	return nil
 }
