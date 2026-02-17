@@ -86,6 +86,18 @@ func (g *Game) Update() error {
 		g.Char.InZoomMode = !g.Char.InZoomMode
 		g.Char.MovingDir = zero
 	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+		g.Char.MovingDir = image.Pt(-1, 0)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+		g.Char.MovingDir = image.Pt(1, 0)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
+		g.Char.MovingDir = image.Pt(0, -1)
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
+		g.Char.MovingDir = image.Pt(0, 1)
+	}
 	if inpututil.IsKeyJustReleased(ebiten.KeyArrowUp) {
 		g.Char.MovingDir = zero
 	}
@@ -133,26 +145,8 @@ func (g *Game) Update() error {
 			return nil
 		}
 		zp := g.Char.ZoomPos
-		dir := image.Point{}
-		if g.Char.MovingDir != zero {
-			dir = g.Char.MovingDir
-		} else {
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-				dir = image.Pt(-1, 0)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-				dir = image.Pt(1, 0)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-				dir = image.Pt(0, -1)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-				dir = image.Pt(0, 1)
-			}
-		}
-		zp = zp.Add(dir)
+		zp = zp.Add(g.Char.MovingDir)
 		if zp.In(image.Rect(0, 0, tileSize, tileSize)) {
-			g.Char.MovingDir = dir
 			g.Char.ZoomPos = zp
 			return nil
 		}
@@ -213,26 +207,8 @@ func (g *Game) Update() error {
 			}
 		}
 		p := g.Char.Pos
-		dir := image.Point{}
-		if g.Char.MovingDir != zero {
-			dir = g.Char.MovingDir
-		} else {
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-				dir = image.Pt(-1, 0)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-				dir = image.Pt(1, 0)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-				dir = image.Pt(0, -1)
-			}
-			if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-				dir = image.Pt(0, 1)
-			}
-		}
-		p = p.Add(dir)
+		p = p.Add(g.Char.MovingDir)
 		if p.In(g.World.Bound) {
-			g.Char.MovingDir = dir
 			g.Char.Pos = p
 		}
 	}
