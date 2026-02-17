@@ -43,7 +43,7 @@ type Character struct {
 	CopiedTile *Tile
 	InZoomMode bool
 	ZoomPos    image.Point // cannot exceed (tileSize, tileSize)
-	MovingDir  image.Point
+	MovingDirs []image.Point
 }
 
 func (ch *Character) Move(pt image.Point) {
@@ -81,34 +81,56 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
-	zero := image.Point{}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		g.Char.InZoomMode = !g.Char.InZoomMode
-		g.Char.MovingDir = zero
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		g.Char.MovingDir = image.Pt(-1, 0)
+		g.Char.MovingDirs = append(g.Char.MovingDirs, image.Pt(-1, 0))
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		g.Char.MovingDir = image.Pt(1, 0)
+		g.Char.MovingDirs = append(g.Char.MovingDirs, image.Pt(1, 0))
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-		g.Char.MovingDir = image.Pt(0, -1)
+		g.Char.MovingDirs = append(g.Char.MovingDirs, image.Pt(0, -1))
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-		g.Char.MovingDir = image.Pt(0, 1)
+		g.Char.MovingDirs = append(g.Char.MovingDirs, image.Pt(0, 1))
 	}
 	if inpututil.IsKeyJustReleased(ebiten.KeyArrowUp) {
-		g.Char.MovingDir = zero
+		dirs := make([]image.Point, 0, 3)
+		for _, d := range g.Char.MovingDirs {
+			if d != image.Pt(0, -1) {
+				dirs = append(dirs, d)
+			}
+		}
+		g.Char.MovingDirs = dirs
 	}
 	if inpututil.IsKeyJustReleased(ebiten.KeyArrowDown) {
-		g.Char.MovingDir = zero
+		dirs := make([]image.Point, 0, 3)
+		for _, d := range g.Char.MovingDirs {
+			if d != image.Pt(0, 1) {
+				dirs = append(dirs, d)
+			}
+		}
+		g.Char.MovingDirs = dirs
 	}
 	if inpututil.IsKeyJustReleased(ebiten.KeyArrowLeft) {
-		g.Char.MovingDir = zero
+		dirs := make([]image.Point, 0, 3)
+		for _, d := range g.Char.MovingDirs {
+			if d != image.Pt(-1, 0) {
+				dirs = append(dirs, d)
+			}
+		}
+		g.Char.MovingDirs = dirs
 	}
 	if inpututil.IsKeyJustReleased(ebiten.KeyArrowRight) {
-		g.Char.MovingDir = zero
+		dirs := make([]image.Point, 0, 3)
+		for _, d := range g.Char.MovingDirs {
+			if d != image.Pt(1, 0) {
+				dirs = append(dirs, d)
+			}
+		}
+		g.Char.MovingDirs = dirs
 	}
 	if g.Char.InZoomMode {
 		if inpututil.IsKeyJustPressed(ebiten.KeyR) {
@@ -145,7 +167,9 @@ func (g *Game) Update() error {
 			return nil
 		}
 		zp := g.Char.ZoomPos
-		zp = zp.Add(g.Char.MovingDir)
+		if len(g.Char.MovingDirs) != 0 {
+			zp = zp.Add(g.Char.MovingDirs[len(g.Char.MovingDirs)-1])
+		}
 		if zp.In(image.Rect(0, 0, tileSize, tileSize)) {
 			g.Char.ZoomPos = zp
 			return nil
@@ -207,7 +231,9 @@ func (g *Game) Update() error {
 			}
 		}
 		p := g.Char.Pos
-		p = p.Add(g.Char.MovingDir)
+		if len(g.Char.MovingDirs) != 0 {
+			p = p.Add(g.Char.MovingDirs[len(g.Char.MovingDirs)-1])
+		}
 		if p.In(g.World.Bound) {
 			g.Char.Pos = p
 		}
