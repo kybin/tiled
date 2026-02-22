@@ -271,7 +271,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			cursorImage.Set(zoomScale-1, j, c)
 		}
 		op = &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(origin.X)+float64(g.Char.ZoomPos.X)*zoomScale, float64(origin.Y)+float64(g.Char.ZoomPos.Y)*zoomScale)
+		x := float64(g.Char.ZoomPos.X) + float64(g.Char.MovingDir.X)*float64(g.Char.stepTicks)/maxStepTicks
+		y := float64(g.Char.ZoomPos.Y) + float64(g.Char.MovingDir.Y)*float64(g.Char.stepTicks)/maxStepTicks
+		op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
 		screen.DrawImage(cursorImage, op)
 		// draw outline
 		outlineImage := ebiten.NewImage(1, 1)
@@ -319,7 +321,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			cursorImage.Set(tileSize-1, j, c)
 		}
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(g.Char.Pos.X)*tileSize, float64(g.Char.Pos.Y)*tileSize)
+		x := float64(g.Char.Pos.X) + float64(g.Char.MovingDir.X)*float64(g.Char.stepTicks)/maxStepTicks
+		y := float64(g.Char.Pos.Y) + float64(g.Char.MovingDir.Y)*float64(g.Char.stepTicks)/maxStepTicks
+		op.GeoM.Translate(x*tileSize, y*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
 }
