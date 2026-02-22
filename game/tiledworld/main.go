@@ -63,6 +63,13 @@ type Character struct {
 	stepTicks  int
 }
 
+func (ch *Character) ActionPos() image.Point {
+	if ch.InZoomMode {
+		return ch.Pos
+	}
+	return ch.Pos.Add(ch.MovingDir)
+}
+
 func (ch *Character) Move(dir image.Point) {
 	if dir == image.Pt(0, 0) {
 		return
@@ -136,15 +143,15 @@ func (ch *Character) SetLevel(l int) {
 }
 
 func (ch *Character) CurrentTile() *Tile {
-	return ch.World.Map[ch.Pos]
+	return ch.World.Map[ch.ActionPos()]
 }
 
 func (ch *Character) CopyTile() {
-	ch.CopiedTile = ch.World.Map[ch.Pos]
+	ch.CopiedTile = ch.World.Map[ch.ActionPos()]
 }
 
 func (ch *Character) PasteTile() {
-	ch.World.Map[ch.Pos] = ch.CopiedTile
+	ch.World.Map[ch.ActionPos()] = ch.CopiedTile
 }
 
 type Game struct {
