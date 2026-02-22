@@ -268,7 +268,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		screen.DrawImage(tileImage, op)
 		// draw cursor
 		cursorImage := ebiten.NewImage(zoomScale, zoomScale)
-		c := color.RGBA{R: 255, G: 255, B: 64, A: 128}
+		c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
 		for i := 0; i < zoomScale; i++ {
 			cursorImage.Set(i, 0, c)
 			cursorImage.Set(i, zoomScale-1, c)
@@ -278,6 +278,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			cursorImage.Set(zoomScale-1, j, c)
 		}
 		op = &ebiten.DrawImageOptions{}
+		op.Blend = ebiten.BlendSourceOver
 		x := float64(g.Char.ZoomPos.X) + float64(g.Char.MovingDir.X)*float64(g.Char.stepTicks)/maxStepTicks
 		y := float64(g.Char.ZoomPos.Y) + float64(g.Char.MovingDir.Y)*float64(g.Char.stepTicks)/maxStepTicks
 		op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
@@ -318,7 +319,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			}
 		}
 		cursorImage := ebiten.NewImage(tileSize, tileSize)
-		c := color.RGBA{R: 255, G: 255, B: 64, A: 255}
+		c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
 		for i := 0; i < tileSize; i++ {
 			cursorImage.Set(i, 0, c)
 			cursorImage.Set(i, tileSize-1, c)
@@ -328,6 +329,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			cursorImage.Set(tileSize-1, j, c)
 		}
 		op := &ebiten.DrawImageOptions{}
+		op.Blend = ebiten.BlendSourceOver
 		x := float64(g.Char.Pos.X) + float64(g.Char.MovingDir.X)*float64(g.Char.stepTicks)/maxStepTicks
 		y := float64(g.Char.Pos.Y) + float64(g.Char.MovingDir.Y)*float64(g.Char.stepTicks)/maxStepTicks
 		op.GeoM.Translate(x*tileSize, y*tileSize)
