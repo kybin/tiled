@@ -176,6 +176,9 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 type ZoomMode struct {
 	NormalMode *NormalMode
 	Mover
+	Hue        int
+	Saturation int
+	Lightness  int
 }
 
 func (m *ZoomMode) Move(dir image.Point) {
@@ -236,16 +239,31 @@ func (m *ZoomMode) Move(dir image.Point) {
 
 func (m *ZoomMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
-	if !m.IsMoving {
-		for _, k := range keys {
+	for _, k := range keys {
+		if k == ebiten.KeyA {
+			m.Hue = max(m.Hue-4, 1)
+		}
+		if k == ebiten.KeyD {
+			m.Hue = min(m.Hue+4, 255)
+		}
+		if k == ebiten.KeyQ {
+			m.Saturation = max(m.Saturation-4, 1)
+		}
+		if k == ebiten.KeyE {
+			m.Saturation = min(m.Saturation+4, 255)
+		}
+		if k == ebiten.KeyS {
+			m.Lightness = max(m.Lightness-16, 1)
+		}
+		if k == ebiten.KeyW {
+			m.Lightness = min(m.Lightness+16, 255)
+		}
+		if !m.IsMoving {
 			d := keyDirection(k)
-			if d == image.Pt(0, 0) {
-				// not a key related with movement
-				continue
+			if d != image.Pt(0, 0) {
+				m.IsMoving = true
+				m.MovingDir = d
 			}
-			m.IsMoving = true
-			m.MovingDir = d
-			break
 		}
 	}
 	if m.MovingDir == image.Pt(0, 0) {
@@ -259,28 +277,31 @@ func (m *ZoomMode) Update() error {
 		m.MovingDir = image.Pt(0, 0)
 		m.stepTicks = 0
 	}
-	keyToRGBA := map[ebiten.Key]color.RGBA{
-		ebiten.KeyR: color.RGBA{R: 255, A: 255},
-		ebiten.KeyG: color.RGBA{G: 255, A: 255},
-		ebiten.KeyB: color.RGBA{B: 255, A: 255},
-	}
-	for k, c := range keyToRGBA {
-		if inpututil.IsKeyJustPressed(k) {
-			tile := m.NormalMode.CurrentTile()
-			if tile == nil {
-				tile = &Tile{}
-				tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
-				m.NormalMode.World.Map[m.NormalMode.Pos] = tile
-			}
-			p := m.ActionPos()
-			tile.Image.Set(p.X, p.Y, c)
-			break
+	if inpututil.IsKeyJustPressed(ebiten.KeyV) {
+		tile := m.NormalMode.CurrentTile()
+		if tile == nil {
+			tile = &Tile{}
+			tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
+			m.NormalMode.World.Map[m.NormalMode.Pos] = tile
 		}
+		p := m.ActionPos()
+		c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
+		tile.Image.Set(p.X, p.Y, c)
 	}
 	return nil
 }
 
 func (m *ZoomMode) Draw(screen *ebiten.Image) {
+	colorPickerSize := 32
+	colorPicker := ebiten.NewImage(colorPickerSize, colorPickerSize)
+	c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
+	for h := 0; h < colorPickerSize; h += 1 {
+		for s := 0; s < colorPickerSize; s += 1 {
+			colorPicker.Set(h, colorPickerSize-s-1, c)
+		}
+	}
+	op := &ebiten.DrawImageOptions{}
+	screen.DrawImage(colorPicker, op)
 	// draw zoomed tile
 	zoomedTileSize := zoomScale * tileSize
 	center := image.Pt(layoutWidth/2+1, layoutHeight/2+1)
@@ -290,13 +311,13 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	if tile != nil {
 		tileImage.WritePixels(tile.Image.Pix)
 	}
-	op := &ebiten.DrawImageOptions{}
+	op = &ebiten.DrawImageOptions{}
 	op.GeoM.Scale(zoomScale, zoomScale)
 	op.GeoM.Translate(float64(origin.X), float64(origin.Y))
 	screen.DrawImage(tileImage, op)
 	// draw cursor
 	cursorImage := ebiten.NewImage(zoomScale, zoomScale)
-	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
+	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	for i := 0; i < zoomScale; i++ {
 		cursorImage.Set(i, 0, c)
 		cursorImage.Set(i, zoomScale-1, c)
@@ -340,10 +361,14 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		return ebiten.Termination
+	keys := inpututil.AppendPressedKeys(nil)
+	ctrl := false
+	for _, k := range keys {
+		if k == ebiten.KeyControl {
+			ctrl = true
+		}
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyQ) {
 		return ebiten.Termination
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
@@ -375,6 +400,8 @@ func main() {
 		NormalMode: normalMode,
 		ZoomMode: &ZoomMode{
 			NormalMode: normalMode,
+			Saturation: 255,
+			Lightness:  128,
 		},
 	}
 	game := &Game{}
