@@ -98,16 +98,26 @@ func (m *NormalMode) PasteTile() {
 
 func (m *NormalMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
-	if !m.IsMoving {
-		for _, k := range keys {
+	for _, k := range keys {
+		if k == ebiten.KeyC {
+			m.CopiedTile = m.CurrentTile()
+			continue
+		}
+		if k == ebiten.KeyV {
+			if m.CopiedTile == nil {
+				delete(m.World.Map, m.Pos)
+			} else {
+				m.PasteTile()
+			}
+			continue
+		}
+		if !m.IsMoving {
 			d := keyDirection(k)
-			if d == image.Pt(0, 0) {
-				// not a key related with movement
+			if d != image.Pt(0, 0) {
+				m.IsMoving = true
+				m.MovingDir = d
 				continue
 			}
-			m.IsMoving = true
-			m.MovingDir = d
-			break
 		}
 	}
 	if m.MovingDir == image.Pt(0, 0) {
@@ -121,16 +131,8 @@ func (m *NormalMode) Update() error {
 		m.MovingDir = image.Pt(0, 0)
 		m.stepTicks = 0
 	}
-	// in normal mode
 	if inpututil.IsKeyJustPressed(ebiten.KeyC) {
 		m.CopiedTile = m.CurrentTile()
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyV) {
-		if m.CopiedTile == nil {
-			delete(m.World.Map, m.Pos)
-		} else {
-			m.PasteTile()
-		}
 	}
 	return nil
 }
