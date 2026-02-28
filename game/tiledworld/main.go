@@ -217,7 +217,7 @@ func (m *ZoomMode) Move(dir image.Point) {
 		}
 	} else {
 		// moved to a new tile
-		m.NormalMode.Pos = p
+		m.NormalMode.Pos = np
 		if p.X < 0 {
 			p.X = tileSize - 1
 		}
