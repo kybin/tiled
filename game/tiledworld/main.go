@@ -239,30 +239,42 @@ func (m *ZoomMode) Move(dir image.Point) {
 
 func (m *ZoomMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
+	alt := false
 	for _, k := range keys {
-		if k == ebiten.KeyA {
-			m.Hue = max(m.Hue-4, 1)
+		if k == ebiten.KeyAlt {
+			alt = true
+			break
 		}
-		if k == ebiten.KeyD {
-			m.Hue = min(m.Hue+4, 255)
+	}
+	if alt {
+		for _, k := range keys {
+			if k == ebiten.KeyArrowLeft {
+				m.Hue = max(m.Hue-8, 1)
+			}
+			if k == ebiten.KeyArrowRight {
+				m.Hue = min(m.Hue+8, 255)
+			}
+			if k == ebiten.KeyArrowDown {
+				m.Saturation = max(m.Saturation-16, 1)
+			}
+			if k == ebiten.KeyArrowUp {
+				m.Saturation = min(m.Saturation+16, 255)
+			}
+			if k == ebiten.KeyMinus {
+				m.Lightness = max(m.Lightness-16, 1)
+			}
+			if k == ebiten.KeyEqual {
+				m.Lightness = min(m.Lightness+16, 255)
+			}
 		}
-		if k == ebiten.KeyQ {
-			m.Saturation = max(m.Saturation-4, 1)
-		}
-		if k == ebiten.KeyE {
-			m.Saturation = min(m.Saturation+4, 255)
-		}
-		if k == ebiten.KeyS {
-			m.Lightness = max(m.Lightness-16, 1)
-		}
-		if k == ebiten.KeyW {
-			m.Lightness = min(m.Lightness+16, 255)
-		}
-		if !m.IsMoving {
-			d := keyDirection(k)
-			if d != image.Pt(0, 0) {
-				m.IsMoving = true
-				m.MovingDir = d
+	} else {
+		for _, k := range keys {
+			if !m.IsMoving {
+				d := keyDirection(k)
+				if d != image.Pt(0, 0) {
+					m.IsMoving = true
+					m.MovingDir = d
+				}
 			}
 		}
 	}
