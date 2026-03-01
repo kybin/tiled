@@ -290,6 +290,19 @@ func (m *ZoomMode) Update() error {
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
 			}
+			if k == ebiten.KeyC {
+				tile := m.NormalMode.CurrentTile()
+				if tile != nil {
+					p := m.ActionPos()
+					c, _ := tile.Image.At(p.X, p.Y).(color.RGBA)
+					if c.A != 0 {
+						h, s, l := RGBToHSL(c)
+						m.Hue = int(h * 255)
+						m.Saturation = int(s * 255)
+						m.Lightness = int(l * 255)
+					}
+				}
+			}
 			if k == ebiten.KeyV {
 				tile := m.NormalMode.CurrentTile()
 				if tile == nil {
