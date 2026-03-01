@@ -88,6 +88,9 @@ func (m *NormalMode) CurrentTile() *Tile {
 	return m.World.Map[m.ActionPos()]
 }
 
+func (m *NormalMode) ClearTile() {
+	delete(m.World.Map, m.ActionPos())
+}
 func (m *NormalMode) CopyTile() {
 	m.CopiedTile = m.CurrentTile()
 }
@@ -99,6 +102,10 @@ func (m *NormalMode) PasteTile() {
 func (m *NormalMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
 	for _, k := range keys {
+		if k == ebiten.KeyX {
+			m.ClearTile()
+			continue
+		}
 		if k == ebiten.KeyC {
 			m.CopiedTile = m.CurrentTile()
 			continue
@@ -276,6 +283,24 @@ func (m *ZoomMode) Update() error {
 					m.MovingDir = d
 				}
 			}
+			if k == ebiten.KeyX {
+				tile := m.NormalMode.CurrentTile()
+				if tile != nil {
+					p := m.ActionPos()
+					tile.Image.Set(p.X, p.Y, color.RGBA{})
+				}
+			}
+			if k == ebiten.KeyV {
+				tile := m.NormalMode.CurrentTile()
+				if tile == nil {
+					tile = &Tile{}
+					tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
+					m.NormalMode.World.Map[m.NormalMode.Pos] = tile
+				}
+				p := m.ActionPos()
+				c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
+				tile.Image.Set(p.X, p.Y, c)
+			}
 		}
 	}
 	if m.MovingDir == image.Pt(0, 0) {
@@ -288,17 +313,6 @@ func (m *ZoomMode) Update() error {
 		m.IsMoving = false
 		m.MovingDir = image.Pt(0, 0)
 		m.stepTicks = 0
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyV) {
-		tile := m.NormalMode.CurrentTile()
-		if tile == nil {
-			tile = &Tile{}
-			tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
-			m.NormalMode.World.Map[m.NormalMode.Pos] = tile
-		}
-		p := m.ActionPos()
-		c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
-		tile.Image.Set(p.X, p.Y, c)
 	}
 	return nil
 }
