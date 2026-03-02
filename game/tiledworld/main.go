@@ -261,16 +261,16 @@ func (m *ZoomMode) Update() error {
 			if k == ebiten.KeyArrowRight {
 				m.Hue = min(m.Hue+8, 255)
 			}
-			if k == ebiten.KeyArrowDown {
+			if k == ebiten.KeyMinus {
 				m.Saturation = max(m.Saturation-16, 1)
 			}
-			if k == ebiten.KeyArrowUp {
+			if k == ebiten.KeyEqual {
 				m.Saturation = min(m.Saturation+16, 255)
 			}
-			if k == ebiten.KeyMinus {
+			if k == ebiten.KeyArrowDown {
 				m.Lightness = max(m.Lightness-16, 1)
 			}
-			if k == ebiten.KeyEqual {
+			if k == ebiten.KeyArrowUp {
 				m.Lightness = min(m.Lightness+16, 255)
 			}
 		}
@@ -334,9 +334,9 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	colorPickerSize := 32
 	colorPalette := ebiten.NewImage(colorPickerSize, colorPickerSize)
 	for h := range colorPickerSize {
-		for s := range colorPickerSize {
-			rgb := HSLToRGB(float64(h)/32, float64(s)/32, float64(m.Lightness)/256)
-			colorPalette.Set(h, colorPickerSize-s-1, rgb)
+		for l := range colorPickerSize {
+			rgb := HSLToRGB(float64(h)/32, float64(m.Saturation)/256, float64(l)/32)
+			colorPalette.Set(h, colorPickerSize-l-1, rgb)
 		}
 	}
 	op := &ebiten.DrawImageOptions{}
@@ -346,7 +346,7 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	for _, pt := range focusPts {
 		focus.Set(pt.X, pt.Y, color.RGBA{R: 255, G: 255, A: 255})
 	}
-	op.GeoM.Translate(float64(m.Hue)/8-2, float64(255-m.Saturation-1)/8-2)
+	op.GeoM.Translate(float64(m.Hue)/8-2, float64(255-m.Lightness-1)/8-2)
 	screen.DrawImage(focus, op)
 	colorPicker := ebiten.NewImage(colorPickerSize, colorPickerSize)
 	c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
