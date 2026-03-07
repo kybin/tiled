@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/gob"
 	"image"
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -413,7 +415,8 @@ type Character struct {
 }
 
 type Game struct {
-	Char *Character
+	Char     *Character
+	SaveFile string
 }
 
 func (g *Game) Update() error {
@@ -425,6 +428,17 @@ func (g *Game) Update() error {
 		}
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		f, err := os.Create(g.SaveFile)
+		if err == nil {
+			enc := gob.NewEncoder(f)
+			if err := enc.Encode(g.Char.NormalMode.World); err != nil {
+				// couldn't print in wsl with GOOS=windows
+				e, _ := os.Create("err")
+				e.WriteString(err.Error())
+				e.Close()
+			}
+			f.Close()
+		}
 		return ebiten.Termination
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
@@ -447,7 +461,28 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	world := NewWorld()
+	game := &Game{
+		SaveFile: "save",
+	}
+	gob.Register(World{})
+	world := &World{}
+	f, err := os.Open(game.SaveFile)
+	if err == nil {
+		defer f.Close()
+		dec := gob.NewDecoder(f)
+		err = dec.Decode(world)
+		if err != nil {
+			// couldn't print in wsl with GOOS=windows
+			e, _ := os.Create("err")
+			defer e.Close()
+			e.WriteString(err.Error())
+			return
+		}
+	}
+	// no savefile or unable to decode
+	if world.Map == nil {
+		world = NewWorld()
+	}
 	normalMode := &NormalMode{
 		World: world,
 	}
@@ -460,7 +495,6 @@ func main() {
 			Lightness:  128,
 		},
 	}
-	game := &Game{}
 	game.Char = ch
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowTitle("Tiled World")
