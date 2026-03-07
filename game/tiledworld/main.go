@@ -19,35 +19,65 @@ const (
 	maxStepTicks = 3
 )
 
+type SaveData struct {
+	WorldData *WorldData
+}
+
+type WorldData struct {
+	Bound   image.Rectangle
+	Map     map[image.Point]int
+	GetTile map[int]*Tile
+}
+
 type World struct {
-	Bound      image.Rectangle
-	Map        map[image.Point]int
-	GetTile    map[int]*Tile
-	NextTileID int
+	Bound image.Rectangle
+	Map   map[image.Point]*Tile
 }
 
 func NewWorld() *World {
 	w := &World{
-		Bound:   image.Rect(0, 0, layoutWidth/tileSize, layoutHeight/tileSize),
-		Map:     make(map[image.Point]int),
-		GetTile: make(map[int]*Tile),
+		Bound: image.Rect(0, 0, layoutWidth/tileSize, layoutHeight/tileSize),
+		Map:   make(map[image.Point]*Tile),
 	}
 	return w
 }
 
-func (w *World) NewTileID() int {
-	id := w.NextTileID
-	w.NextTileID += 1
-	return id
+func (w *World) ToData() *WorldData {
+	d := &WorldData{
+		Bound:   w.Bound,
+		Map:     make(map[image.Point]int),
+		GetTile: make(map[int]*Tile),
+	}
+	tileID := make(map[*Tile]int)
+	for p, tile := range w.Map {
+		if tile == nil {
+			log.Fatal("should not have nil in world map")
+		}
+		id := tileID[tile]
+		if id == 0 {
+			// unknown tile
+			id = len(tileID) + 1
+			tileID[tile] = id
+			d.GetTile[id] = tile
+		}
+		d.Map[p] = id
+	}
+	return d
+}
+
+func (w *World) FromData(d *WorldData) {
+	w.Bound = d.Bound
+	for p, id := range d.Map {
+		t := d.GetTile[id]
+		w.Map[p] = t
+	}
 }
 
 func (w *World) NewTile(p image.Point) *Tile {
 	w.ClearTile(p)
 	tile := &Tile{}
 	tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
-	id := w.NewTileID()
-	w.GetTile[id] = tile
-	w.Map[p] = id
+	w.Map[p] = tile
 	return tile
 }
 
@@ -57,20 +87,16 @@ func (w *World) ClearTile(p image.Point) {
 }
 
 func (w *World) DuplicateTile(from image.Point, to image.Point) {
-	id, ok := w.Map[from]
+	tile, ok := w.Map[from]
 	if !ok {
 		w.ClearTile(to)
 		return
 	}
-	w.Map[to] = id
+	w.Map[to] = tile
 }
 
 func (w *World) TileAt(p image.Point) *Tile {
-	id, ok := w.Map[p]
-	if !ok {
-		return nil
-	}
-	return w.GetTile[id]
+	return w.Map[p]
 }
 
 type Tile struct {
@@ -190,9 +216,8 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	maxPos := image.Pt(camRect.Max.X/tileSize, camRect.Max.Y/tileSize)
 	for j := minPos.Y; j <= maxPos.Y; j++ {
 		for i := minPos.X; i <= maxPos.X; i++ {
-			id, ok := m.World.Map[image.Pt(i, j)]
+			tile, ok := m.World.Map[image.Pt(i, j)]
 			if ok {
-				tile := m.World.GetTile[id]
 				tileImage.WritePixels(tile.Image.Pix)
 			} else {
 				tileImage.Clear()
@@ -325,8 +350,7 @@ func (m *ZoomMode) Update() error {
 			}
 			if k == ebiten.KeyX {
 				tile := m.NormalMode.ActionTile()
-				if tile == nil {
-					tile = m.NormalMode.NewTile()
+				if tile != nil {
 					p := m.ActionPos()
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
@@ -334,15 +358,15 @@ func (m *ZoomMode) Update() error {
 			if k == ebiten.KeyC {
 				tile := m.NormalMode.ActionTile()
 				if tile == nil {
-					tile := m.NormalMode.NewTile()
-					p := m.ActionPos()
-					c, _ := tile.Image.At(p.X, p.Y).(color.RGBA)
-					if c.A != 0 {
-						h, s, l := RGBToHSL(c)
-						m.Hue = int(h * 255)
-						m.Saturation = int(s * 255)
-						m.Lightness = int(l * 255)
-					}
+					tile = m.NormalMode.NewTile()
+				}
+				p := m.ActionPos()
+				c, _ := tile.Image.At(p.X, p.Y).(color.RGBA)
+				if c.A != 0 {
+					h, s, l := RGBToHSL(c)
+					m.Hue = int(h * 255)
+					m.Saturation = int(s * 255)
+					m.Lightness = int(l * 255)
 				}
 			}
 			if k == ebiten.KeyV {
@@ -469,7 +493,10 @@ func (g *Game) Update() error {
 		f, err := os.Create(g.SaveFile)
 		if err == nil {
 			enc := gob.NewEncoder(f)
-			if err := enc.Encode(g.Char.NormalMode.World); err != nil {
+			data := &SaveData{
+				WorldData: g.Char.NormalMode.World.ToData(),
+			}
+			if err := enc.Encode(data); err != nil {
 				// couldn't print in wsl with GOOS=windows
 				e, _ := os.Create("err")
 				e.WriteString(err.Error())
@@ -502,13 +529,15 @@ func main() {
 	game := &Game{
 		SaveFile: "save",
 	}
-	gob.Register(World{})
-	world := &World{}
+	// get World from save data if exists
+	world := NewWorld()
+	gob.Register(SaveData{})
+	saved := &SaveData{}
 	f, err := os.Open(game.SaveFile)
 	if err == nil {
 		defer f.Close()
 		dec := gob.NewDecoder(f)
-		err = dec.Decode(world)
+		err = dec.Decode(saved)
 		if err != nil {
 			// couldn't print in wsl with GOOS=windows
 			e, _ := os.Create("err")
@@ -516,10 +545,7 @@ func main() {
 			e.WriteString(err.Error())
 			return
 		}
-	}
-	// no savefile or unable to decode
-	if world.Map == nil {
-		world = NewWorld()
+		world.FromData(saved.WorldData)
 	}
 	normalMode := &NormalMode{
 		World: world,
