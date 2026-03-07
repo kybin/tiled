@@ -20,19 +20,58 @@ const (
 )
 
 type World struct {
-	Bound image.Rectangle
-	Map   Map
+	Bound      image.Rectangle
+	Map        map[image.Point]int
+	GetTile    map[int]*Tile
+	NextTileID int
 }
 
 func NewWorld() *World {
 	w := &World{
-		Bound: image.Rect(0, 0, layoutWidth/tileSize, layoutHeight/tileSize),
-		Map:   make(map[image.Point]*Tile),
+		Bound:   image.Rect(0, 0, layoutWidth/tileSize, layoutHeight/tileSize),
+		Map:     make(map[image.Point]int),
+		GetTile: make(map[int]*Tile),
 	}
 	return w
 }
 
-type Map map[image.Point]*Tile
+func (w *World) NewTileID() int {
+	id := w.NextTileID
+	w.NextTileID += 1
+	return id
+}
+
+func (w *World) NewTile(p image.Point) *Tile {
+	w.ClearTile(p)
+	tile := &Tile{}
+	tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
+	id := w.NewTileID()
+	w.GetTile[id] = tile
+	w.Map[p] = id
+	return tile
+}
+
+func (w *World) ClearTile(p image.Point) {
+	delete(w.Map, p)
+	// TODO: clear the tile when all its references are gone
+}
+
+func (w *World) DuplicateTile(from image.Point, to image.Point) {
+	id, ok := w.Map[from]
+	if !ok {
+		w.ClearTile(to)
+		return
+	}
+	w.Map[to] = id
+}
+
+func (w *World) TileAt(p image.Point) *Tile {
+	id, ok := w.Map[p]
+	if !ok {
+		return nil
+	}
+	return w.GetTile[id]
+}
 
 type Tile struct {
 	Image *image.RGBA
@@ -70,8 +109,8 @@ type Mode interface {
 
 type NormalMode struct {
 	Mover
-	World      *World
-	CopiedTile *Tile
+	World       *World
+	copyTilePos image.Point
 }
 
 func (m *NormalMode) Move(dir image.Point) {
@@ -86,19 +125,24 @@ func (m *NormalMode) Move(dir image.Point) {
 	m.Pos = p
 }
 
-func (m *NormalMode) CurrentTile() *Tile {
-	return m.World.Map[m.ActionPos()]
+func (m *NormalMode) NewTile() *Tile {
+	return m.World.NewTile(m.ActionPos())
+}
+
+func (m *NormalMode) ActionTile() *Tile {
+	return m.World.TileAt(m.ActionPos())
 }
 
 func (m *NormalMode) ClearTile() {
-	delete(m.World.Map, m.ActionPos())
+	m.World.ClearTile(m.ActionPos())
 }
+
 func (m *NormalMode) CopyTile() {
-	m.CopiedTile = m.CurrentTile()
+	m.copyTilePos = m.ActionPos()
 }
 
 func (m *NormalMode) PasteTile() {
-	m.World.Map[m.ActionPos()] = m.CopiedTile
+	m.World.DuplicateTile(m.copyTilePos, m.ActionPos())
 }
 
 func (m *NormalMode) Update() error {
@@ -109,15 +153,11 @@ func (m *NormalMode) Update() error {
 			continue
 		}
 		if k == ebiten.KeyC {
-			m.CopiedTile = m.CurrentTile()
+			m.CopyTile()
 			continue
 		}
 		if k == ebiten.KeyV {
-			if m.CopiedTile == nil {
-				delete(m.World.Map, m.Pos)
-			} else {
-				m.PasteTile()
-			}
+			m.PasteTile()
 			continue
 		}
 		if !m.IsMoving {
@@ -140,9 +180,6 @@ func (m *NormalMode) Update() error {
 		m.MovingDir = image.Pt(0, 0)
 		m.stepTicks = 0
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyC) {
-		m.CopiedTile = m.CurrentTile()
-	}
 	return nil
 }
 
@@ -153,8 +190,9 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	maxPos := image.Pt(camRect.Max.X/tileSize, camRect.Max.Y/tileSize)
 	for j := minPos.Y; j <= maxPos.Y; j++ {
 		for i := minPos.X; i <= maxPos.X; i++ {
-			tile := m.World.Map[image.Pt(i, j)]
-			if tile != nil {
+			id, ok := m.World.Map[image.Pt(i, j)]
+			if ok {
+				tile := m.World.GetTile[id]
 				tileImage.WritePixels(tile.Image.Pix)
 			} else {
 				tileImage.Clear()
@@ -286,15 +324,17 @@ func (m *ZoomMode) Update() error {
 				}
 			}
 			if k == ebiten.KeyX {
-				tile := m.NormalMode.CurrentTile()
-				if tile != nil {
+				tile := m.NormalMode.ActionTile()
+				if tile == nil {
+					tile = m.NormalMode.NewTile()
 					p := m.ActionPos()
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
 			}
 			if k == ebiten.KeyC {
-				tile := m.NormalMode.CurrentTile()
-				if tile != nil {
+				tile := m.NormalMode.ActionTile()
+				if tile == nil {
+					tile := m.NormalMode.NewTile()
 					p := m.ActionPos()
 					c, _ := tile.Image.At(p.X, p.Y).(color.RGBA)
 					if c.A != 0 {
@@ -306,11 +346,9 @@ func (m *ZoomMode) Update() error {
 				}
 			}
 			if k == ebiten.KeyV {
-				tile := m.NormalMode.CurrentTile()
+				tile := m.NormalMode.ActionTile()
 				if tile == nil {
-					tile = &Tile{}
-					tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
-					m.NormalMode.World.Map[m.NormalMode.Pos] = tile
+					tile = m.NormalMode.NewTile()
 				}
 				p := m.ActionPos()
 				c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
@@ -365,7 +403,7 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	center := image.Pt(layoutWidth/2+1, layoutHeight/2+1)
 	origin := image.Pt(center.X-zoomedTileSize/2, center.Y-zoomedTileSize/2)
 	tileImage := ebiten.NewImage(tileSize, tileSize)
-	tile := m.NormalMode.CurrentTile()
+	tile := m.NormalMode.ActionTile()
 	if tile != nil {
 		tileImage.WritePixels(tile.Image.Pix)
 	}
