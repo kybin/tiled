@@ -249,7 +249,7 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
 	cursorImage.Clear()
-	c = color.RGBA{R: 64, G: 64, B: 128, A: 128}
+	c = color.RGBA{R: 64, G: 64, B: 192, A: 128}
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
