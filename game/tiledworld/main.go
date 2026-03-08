@@ -99,6 +99,16 @@ func (w *World) TileAt(p image.Point) *Tile {
 	return w.Map[p]
 }
 
+func (w *World) TilePoses(tile *Tile) []image.Point {
+	pts := make([]image.Point, 0)
+	for pt, t := range w.Map {
+		if tile == t {
+			pts = append(pts, pt)
+		}
+	}
+	return pts
+}
+
 type Tile struct {
 	Image *image.RGBA
 }
@@ -245,6 +255,17 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	op.Blend = ebiten.BlendSourceOver
 	op.GeoM.Translate(float64(m.copyTilePos.X)*tileSize, float64(m.copyTilePos.Y)*tileSize)
 	screen.DrawImage(cursorImage, op)
+	// draw all matching cursor
+	cursorImage.Clear()
+	c = color.RGBA{R: 32, G: 32, B: 32, A: 32}
+	drawOutline(cursorImage, cursorImage.Bounds(), c)
+	op = &ebiten.DrawImageOptions{}
+	op.Blend = ebiten.BlendSourceOver
+	for _, p := range m.World.TilePoses(m.ActionTile()) {
+		op.GeoM.Reset()
+		op.GeoM.Translate(float64(p.X)*tileSize, float64(p.Y)*tileSize)
+		screen.DrawImage(cursorImage, op)
+	}
 }
 
 type ZoomMode struct {
