@@ -229,14 +229,7 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	}
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
-	for i := 0; i < tileSize; i++ {
-		cursorImage.Set(i, 0, c)
-		cursorImage.Set(i, tileSize-1, c)
-	}
-	for j := 0; j < tileSize; j++ {
-		cursorImage.Set(0, j, c)
-		cursorImage.Set(tileSize-1, j, c)
-	}
+	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
@@ -438,14 +431,7 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	// draw cursor
 	cursorImage := ebiten.NewImage(zoomScale, zoomScale)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
-	for i := 0; i < zoomScale; i++ {
-		cursorImage.Set(i, 0, c)
-		cursorImage.Set(i, zoomScale-1, c)
-	}
-	for j := 0; j < zoomScale; j++ {
-		cursorImage.Set(0, j, c)
-		cursorImage.Set(zoomScale-1, j, c)
-	}
+	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
@@ -453,21 +439,11 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
 	screen.DrawImage(cursorImage, op)
 	// draw outline
-	outlineImage := ebiten.NewImage(1, 1)
 	c = color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	outlineImage.Set(0, 0, c)
-	op = &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(1, float64(zoomedTileSize)+2)
-	op.GeoM.Translate(float64(origin.X)-1, float64(origin.Y)-1)
-	screen.DrawImage(outlineImage, op)
-	op.GeoM.Translate(float64(zoomedTileSize)+1, 0)
-	screen.DrawImage(outlineImage, op)
-	op = &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(float64(zoomedTileSize)+2, 1)
-	op.GeoM.Translate(float64(origin.X)-1, float64(origin.Y)-1)
-	screen.DrawImage(outlineImage, op)
-	op.GeoM.Translate(0, float64(zoomedTileSize)+1)
-	screen.DrawImage(outlineImage, op)
+	b := image.Rectangle{}
+	b.Min = origin.Sub(image.Pt(1, 1))
+	b.Max = origin.Add(image.Pt(zoomedTileSize+1, zoomedTileSize+1))
+	drawOutline(screen, b, c)
 }
 
 type Character struct {
