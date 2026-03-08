@@ -227,6 +227,7 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 			screen.DrawImage(tileImage, op)
 		}
 	}
+	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
@@ -235,6 +236,14 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
 	y := float64(m.Pos.Y) + float64(m.MovingDir.Y)*float64(m.stepTicks)/maxStepTicks
 	op.GeoM.Translate(x*tileSize, y*tileSize)
+	screen.DrawImage(cursorImage, op)
+	// draw copy cursor
+	cursorImage.Clear()
+	c = color.RGBA{R: 64, G: 64, B: 128, A: 128}
+	drawOutline(cursorImage, cursorImage.Bounds(), c)
+	op = &ebiten.DrawImageOptions{}
+	op.Blend = ebiten.BlendSourceOver
+	op.GeoM.Translate(float64(m.copyTilePos.X)*tileSize, float64(m.copyTilePos.Y)*tileSize)
 	screen.DrawImage(cursorImage, op)
 }
 
