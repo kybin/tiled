@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"image"
 	"image/color"
+	"image/draw"
 	"log"
 	"os"
 
@@ -95,6 +96,15 @@ func (w *World) DuplicateTile(from image.Point, to image.Point) {
 	w.Map[to] = tile
 }
 
+func (w *World) MakeTileUnique(p image.Point) {
+	old, ok := w.Map[p]
+	if !ok {
+		return
+	}
+	tile := w.NewTile(p)
+	draw.Draw(tile.Image, tile.Image.Bounds(), old.Image, image.Pt(0, 0), draw.Src)
+}
+
 func (w *World) TileAt(p image.Point) *Tile {
 	return w.Map[p]
 }
@@ -181,6 +191,10 @@ func (m *NormalMode) PasteTile() {
 	m.World.DuplicateTile(m.copyTilePos, m.ActionPos())
 }
 
+func (m *NormalMode) MakeTileUnique() {
+	m.World.MakeTileUnique(m.ActionPos())
+}
+
 func (m *NormalMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
 	for _, k := range keys {
@@ -194,6 +208,10 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyV {
 			m.PasteTile()
+			continue
+		}
+		if k == ebiten.KeyD {
+			m.MakeTileUnique()
 			continue
 		}
 		if !m.IsMoving {
