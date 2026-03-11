@@ -360,9 +360,9 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	// draw slots at lower center
 	slotPad := 10
 	slotWidth := (tileSize+2)*len(m.TileSlots) + slotPad*len(m.TileSlots) // +2 for outline
-	slotHeight := tileSize + 2 + slotPad
+	slotHeight := tileSize + 2
 	mid := layoutWidth/2 + 1
-	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight)
+	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-5)
 	slotImage := ebiten.NewImage(tileSize+2, tileSize+2)
 	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	op = &ebiten.DrawImageOptions{}
@@ -375,6 +375,8 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 		if t != nil {
 			draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
 		}
+		top := &text.DrawOptions{}
+		top.GeoM.Translate(1, 0)
 		text.Draw(
 			slotImage,
 			strconv.Itoa(i+1),
@@ -382,7 +384,7 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 				Source: faceSource,
 				Size:   8,
 			},
-			nil,
+			top,
 		)
 		drawOutline(slotImage, slotImage.Bounds(), c)
 		screen.DrawImage(slotImage, op)
@@ -691,6 +693,7 @@ func main() {
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowTitle("Tiled World")
 	ebiten.SetScreenClearedEveryFrame(false)
+	ebiten.SetScreenFilterEnabled(false)
 	ebiten.SetTPS(20)
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
