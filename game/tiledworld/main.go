@@ -1,15 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"encoding/gob"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
 	"log"
 	"os"
+	"strconv"
 
+	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 )
 
 const (
@@ -19,6 +24,24 @@ const (
 	zoomScale    = 8
 	maxStepTicks = 3
 )
+
+var (
+	faceSource *text.GoTextFaceSource
+)
+
+func init() {
+	s, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
+	if err != nil {
+		log.Fatal(err)
+	}
+	faceSource = s
+}
+
+func what(vs ...any) {
+	e, _ := os.Create("what")
+	e.WriteString(fmt.Sprintf("%v", vs))
+	e.Close()
+}
 
 type SaveData struct {
 	WorldData *WorldData
@@ -85,6 +108,14 @@ func (w *World) NewTile(p image.Point) *Tile {
 func (w *World) ClearTile(p image.Point) {
 	delete(w.Map, p)
 	// TODO: clear the tile when all its references are gone
+}
+
+func (w *World) PutTile(p image.Point, t *Tile) {
+	if t == nil {
+		w.ClearTile(p)
+		return
+	}
+	w.Map[p] = t
 }
 
 func (w *World) DuplicateTile(from image.Point, to image.Point) {
@@ -157,6 +188,7 @@ type NormalMode struct {
 	Mover
 	World       *World
 	copyTilePos image.Point
+	TileSlots   [5]*Tile
 }
 
 func (m *NormalMode) Move(dir image.Point) {
@@ -183,31 +215,72 @@ func (m *NormalMode) ClearTile() {
 	m.World.ClearTile(m.ActionPos())
 }
 
-func (m *NormalMode) CopyTile() {
+func (m *NormalMode) CopyPos() {
 	m.copyTilePos = m.ActionPos()
 }
 
-func (m *NormalMode) PasteTile() {
+func (m *NormalMode) PastePos() {
 	m.World.DuplicateTile(m.copyTilePos, m.ActionPos())
+}
+
+func (m *NormalMode) PasteTile(t *Tile) {
+	m.World.PutTile(m.ActionPos(), t)
 }
 
 func (m *NormalMode) MakeTileUnique() {
 	m.World.MakeTileUnique(m.ActionPos())
 }
 
+func (m *NormalMode) CopyTileToSlot(i int) {
+	if i >= 0 && i < len(m.TileSlots) {
+		m.TileSlots[i] = m.ActionTile()
+	}
+}
+
+func (m *NormalMode) PasteTileFromSlot(i int) {
+	if i >= 0 && i < len(m.TileSlots) {
+		m.PasteTile(m.TileSlots[i])
+	}
+}
+
 func (m *NormalMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
+	alt := false
 	for _, k := range keys {
+		if k == ebiten.KeyAlt {
+			alt = true
+			break
+		}
+	}
+	slotKeys := []ebiten.Key{
+		ebiten.Key1, // slot0
+		ebiten.Key2,
+		ebiten.Key3,
+		ebiten.Key4,
+		ebiten.Key5,
+	}
+	for _, k := range keys {
+		for i, sk := range slotKeys {
+			if k != sk {
+				continue
+			}
+			if alt {
+				m.CopyTileToSlot(i)
+			} else {
+				m.PasteTileFromSlot(i)
+			}
+			break
+		}
 		if k == ebiten.KeyX {
 			m.ClearTile()
 			continue
 		}
 		if k == ebiten.KeyC {
-			m.CopyTile()
+			m.CopyPos()
 			continue
 		}
 		if k == ebiten.KeyV {
-			m.PasteTile()
+			m.PastePos()
 			continue
 		}
 		if k == ebiten.KeyD {
@@ -283,6 +356,37 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 		op.GeoM.Reset()
 		op.GeoM.Translate(float64(p.X)*tileSize, float64(p.Y)*tileSize)
 		screen.DrawImage(cursorImage, op)
+	}
+	// draw slots at lower center
+	slotPad := 10
+	slotWidth := (tileSize+2)*len(m.TileSlots) + slotPad*len(m.TileSlots) // +2 for outline
+	slotHeight := tileSize + 2 + slotPad
+	mid := layoutWidth/2 + 1
+	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight)
+	slotImage := ebiten.NewImage(tileSize+2, tileSize+2)
+	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	op = &ebiten.DrawImageOptions{}
+	at := image.Pt(slotOrigin.X, slotOrigin.Y)
+	for i, t := range m.TileSlots {
+		op.GeoM.Reset()
+		op.GeoM.Translate(float64(at.X), float64(at.Y))
+		slotImage.Clear()
+		draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), image.Black, image.Pt(0, 0), draw.Src)
+		if t != nil {
+			draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
+		}
+		text.Draw(
+			slotImage,
+			strconv.Itoa(i+1),
+			&text.GoTextFace{
+				Source: faceSource,
+				Size:   8,
+			},
+			nil,
+		)
+		drawOutline(slotImage, slotImage.Bounds(), c)
+		screen.DrawImage(slotImage, op)
+		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
 }
 
