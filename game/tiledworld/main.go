@@ -310,7 +310,8 @@ func (m *NormalMode) Update() error {
 	return nil
 }
 
-func (m *NormalMode) Draw(screen *ebiten.Image) {
+func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
+	screen := ebiten.NewImage(layoutWidth, layoutHeight)
 	camRect := image.Rect(0, 0, layoutWidth, layoutHeight)
 	tileImage := ebiten.NewImage(tileSize, tileSize)
 	minPos := image.Pt(camRect.Min.X/tileSize, camRect.Min.Y/tileSize)
@@ -367,7 +368,7 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	op = &ebiten.DrawImageOptions{}
 	at := image.Pt(slotOrigin.X, slotOrigin.Y)
-	for i, t := range m.TileSlots {
+	for _, t := range m.TileSlots {
 		op.GeoM.Reset()
 		op.GeoM.Translate(float64(at.X), float64(at.Y))
 		slotImage.Clear()
@@ -375,19 +376,28 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 		if t != nil {
 			draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
 		}
+		drawOutline(slotImage, slotImage.Bounds(), c)
+		screen.DrawImage(slotImage, op)
+		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
+	}
+	op = &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(2, 2)
+	fullscreen.DrawImage(screen, op)
+	op = &ebiten.DrawImageOptions{}
+	at = image.Pt(slotOrigin.X, slotOrigin.Y)
+	for i := range m.TileSlots {
 		top := &text.DrawOptions{}
-		top.GeoM.Translate(1, 0)
+		top.GeoM.Translate(float64(at.X*2)+2, float64(at.Y*2))
+		top.ColorM.Scale(1, 1, 1, 0.5)
 		text.Draw(
-			slotImage,
+			fullscreen,
 			strconv.Itoa(i+1),
 			&text.GoTextFace{
 				Source: faceSource,
-				Size:   8,
+				Size:   16,
 			},
 			top,
 		)
-		drawOutline(slotImage, slotImage.Bounds(), c)
-		screen.DrawImage(slotImage, op)
 		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
 }
@@ -541,7 +551,8 @@ func (m *ZoomMode) Update() error {
 	return nil
 }
 
-func (m *ZoomMode) Draw(screen *ebiten.Image) {
+func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
+	screen := ebiten.NewImage(layoutWidth, layoutHeight)
 	colorPickerSize := 32
 	colorPalette := ebiten.NewImage(colorPickerSize, colorPickerSize)
 	for h := range colorPickerSize {
@@ -598,6 +609,9 @@ func (m *ZoomMode) Draw(screen *ebiten.Image) {
 	b.Min = origin.Sub(image.Pt(1, 1))
 	b.Max = origin.Add(image.Pt(zoomedTileSize+1, zoomedTileSize+1))
 	drawOutline(screen, b, c)
+	op = &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(2, 2)
+	fullscreen.DrawImage(screen, op)
 }
 
 type Character struct {
@@ -652,7 +666,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return layoutWidth, layoutHeight
+	return outsideWidth, outsideHeight
 }
 
 func main() {
@@ -691,6 +705,7 @@ func main() {
 	}
 	game.Char = ch
 	ebiten.SetWindowSize(640, 480)
+	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Tiled World")
 	ebiten.SetScreenClearedEveryFrame(false)
 	ebiten.SetScreenFilterEnabled(false)
