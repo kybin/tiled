@@ -7,6 +7,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/png"
 	"log"
 	"os"
 	"strconv"
@@ -285,6 +286,26 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyD {
 			m.MakeTileUnique()
+			continue
+		}
+		if k == ebiten.KeyP {
+			b := m.World.Bound
+			screenshot := image.NewRGBA(image.Rect(b.Min.X, b.Min.Y, b.Max.X*tileSize, b.Max.Y*tileSize))
+			f, err := os.Create("screenshot.png")
+			if err != nil {
+				what(err)
+				panic(err)
+			}
+			for p, t := range m.World.Map {
+				tmin := p.Mul(tileSize)
+				tmax := p.Add(image.Pt(1, 1)).Mul(tileSize)
+				draw.Draw(screenshot, image.Rect(tmin.X, tmin.Y, tmax.X, tmax.Y), t.Image, image.Pt(0, 0), draw.Src)
+			}
+			err = png.Encode(f, screenshot)
+			if err != nil {
+				what(err)
+				panic(err)
+			}
 			continue
 		}
 		if !m.IsMoving {
