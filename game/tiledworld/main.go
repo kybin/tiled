@@ -490,10 +490,13 @@ func (m *ZoomMode) Move(dir image.Point) {
 func (m *ZoomMode) Update() error {
 	keys := inpututil.AppendPressedKeys(nil)
 	alt := false
+	shift := false
 	for _, k := range keys {
 		if k == ebiten.KeyAlt {
 			alt = true
-			break
+		}
+		if k == ebiten.KeyShift {
+			shift = true
 		}
 	}
 	if alt {
@@ -515,6 +518,36 @@ func (m *ZoomMode) Update() error {
 			}
 			if k == ebiten.KeyArrowUp {
 				m.Lightness = min(m.Lightness+16, 255)
+			}
+		}
+	} else if shift {
+		tile := m.NormalMode.ActionTile()
+		if tile != nil {
+			for _, k := range keys {
+				if k == ebiten.KeyArrowLeft {
+					cutImage := ebiten.NewImage(1, tileSize)
+					draw.Draw(cutImage, cutImage.Bounds(), tile.Image, image.Pt(0, 0), draw.Src)
+					draw.Draw(tile.Image, image.Rect(0, 0, tileSize-1, tileSize), tile.Image, image.Pt(1, 0), draw.Src)
+					draw.Draw(tile.Image, image.Rect(tileSize-1, 0, tileSize, tileSize), cutImage, image.Pt(0, 0), draw.Src)
+				}
+				if k == ebiten.KeyArrowRight {
+					cutImage := ebiten.NewImage(1, tileSize)
+					draw.Draw(cutImage, cutImage.Bounds(), tile.Image, image.Pt(tileSize-1, 0), draw.Src)
+					draw.Draw(tile.Image, image.Rect(1, 0, tileSize, tileSize), tile.Image, image.Pt(0, 0), draw.Src)
+					draw.Draw(tile.Image, image.Rect(0, 0, 1, tileSize), cutImage, image.Pt(0, 0), draw.Src)
+				}
+				if k == ebiten.KeyArrowUp {
+					cutImage := ebiten.NewImage(tileSize, 1)
+					draw.Draw(cutImage, cutImage.Bounds(), tile.Image, image.Pt(0, 0), draw.Src)
+					draw.Draw(tile.Image, image.Rect(0, 0, tileSize, tileSize-1), tile.Image, image.Pt(0, 1), draw.Src)
+					draw.Draw(tile.Image, image.Rect(0, tileSize-1, tileSize, tileSize), cutImage, image.Pt(0, 0), draw.Src)
+				}
+				if k == ebiten.KeyArrowDown {
+					cutImage := ebiten.NewImage(tileSize, 1)
+					draw.Draw(cutImage, cutImage.Bounds(), tile.Image, image.Pt(0, tileSize-1), draw.Src)
+					draw.Draw(tile.Image, image.Rect(0, 1, tileSize, tileSize), tile.Image, image.Pt(0, 0), draw.Src)
+					draw.Draw(tile.Image, image.Rect(0, 0, tileSize, 1), cutImage, image.Pt(0, 0), draw.Src)
+				}
 			}
 		}
 	} else {
