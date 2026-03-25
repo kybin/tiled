@@ -1,0 +1,18 @@
+- World
+	- Redefine tile size
+	- Redefine tile origin
+	- Redefine/turn-off boundary
+	- Redefine tile image will limited to tile size
+- Layer
+	- Add layer
+	- Layer up/down
+- Tile
+	- Physical property
+- NormalMode
+	- Camera
+	- Selection
+- ZoomMode
+	- Better color picking method
+- Interact
+	- Select tile by mouse cursor
+
