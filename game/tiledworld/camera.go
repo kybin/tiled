@@ -27,32 +27,6 @@ func (c *Camera) SetSize(s image.Point) {
 	c.Size = s
 }
 
-func (c *Camera) SetBounds(b image.Rectangle) {
-	// bounds should have size bigger than 1x1
-	if b.Dx() < 1 {
-		b.Max.X = b.Min.X + 1
-	}
-	if b.Dy() < 1 {
-		b.Max.Y = b.Min.Y + 1
-	}
-	c.Bounds = &b
-	// move and shrink camera when it overflows the bounds
-	if c.Origin.X < b.Min.X {
-		c.Origin.X = b.Min.X
-	}
-	if c.Origin.Y < b.Min.Y {
-		c.Origin.Y = b.Min.Y
-	}
-	overx := c.Origin.X + c.Size.X - b.Max.X
-	if overx > 0 {
-		c.Size.X -= overx
-	}
-	overy := c.Origin.Y + c.Size.Y - b.Max.Y
-	if overy > 0 {
-		c.Size.Y -= overy
-	}
-}
-
 func (c *Camera) Rect() image.Rectangle {
 	End := c.Origin.Add(c.Size)
 	return image.Rect(c.Origin.X, c.Origin.Y, End.X, End.Y)

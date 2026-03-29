@@ -49,24 +49,20 @@ type SaveData struct {
 }
 
 type WorldData struct {
-	Bound   image.Rectangle
 	Map     map[image.Point]int
 	GetTile map[int]*Tile
 }
 
 type World struct {
-	Bound  image.Rectangle
 	Map    map[image.Point]*Tile
 	Camera *Camera
 }
 
 func NewWorld() *World {
 	w := &World{
-		Bound: image.Rect(0, 0, 16, 12),
-		Map:   make(map[image.Point]*Tile),
+		Map: make(map[image.Point]*Tile),
 	}
 	c := NewCamera(image.Pt(0, 0), image.Pt(8, 6))
-	c.SetBounds(w.Bound)
 	c.FollowMargin = 3
 	w.Camera = c
 	return w
@@ -74,7 +70,6 @@ func NewWorld() *World {
 
 func (w *World) ToData() *WorldData {
 	d := &WorldData{
-		Bound:   w.Bound,
 		Map:     make(map[image.Point]int),
 		GetTile: make(map[int]*Tile),
 	}
@@ -96,7 +91,6 @@ func (w *World) ToData() *WorldData {
 }
 
 func (w *World) FromData(d *WorldData) {
-	w.Bound = d.Bound
 	for p, id := range d.Map {
 		t := d.GetTile[id]
 		w.Map[p] = t
@@ -201,12 +195,7 @@ func (m *NormalMode) Move(dir image.Point) {
 	if dir == image.Pt(0, 0) {
 		return
 	}
-	p := m.Pos
-	p = p.Add(dir)
-	if !p.In(m.World.Bound) {
-		return
-	}
-	m.Pos = p
+	m.Pos = m.Pos.Add(dir)
 }
 
 func (m *NormalMode) NewTile() *Tile {
@@ -294,8 +283,8 @@ func (m *NormalMode) Update() error {
 			continue
 		}
 		if k == ebiten.KeyP {
-			b := m.World.Bound
-			screenshot := image.NewRGBA(image.Rect(b.Min.X, b.Min.Y, b.Max.X*tileSize, b.Max.Y*tileSize))
+			r := m.World.Camera.Rect()
+			screenshot := image.NewRGBA(image.Rect(r.Min.X, r.Min.Y, r.Max.X*tileSize, r.Max.Y*tileSize))
 			f, err := os.Create("screenshot.png")
 			if err != nil {
 				what(err)
@@ -343,8 +332,8 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	tileImage := ebiten.NewImage(tileSize, tileSize)
 	minPos := image.Pt(camRect.Min.X, camRect.Min.Y)
 	maxPos := image.Pt(camRect.Max.X, camRect.Max.Y)
-	for j := minPos.Y; j <= maxPos.Y; j++ {
-		for i := minPos.X; i <= maxPos.X; i++ {
+	for j := minPos.Y; j < maxPos.Y; j++ {
+		for i := minPos.X; i < maxPos.X; i++ {
 			tile, ok := m.World.Map[image.Pt(i, j)]
 			if ok {
 				tileImage.WritePixels(tile.Image.Pix)
@@ -464,36 +453,21 @@ func (m *ZoomMode) Move(dir image.Point) {
 	if p.Y >= tileSize {
 		np = np.Add(image.Pt(0, 1))
 	}
-	if !np.In(m.NormalMode.World.Bound) {
-		if p.X < 0 {
-			p.X = 0
-		}
-		if p.X >= tileSize {
-			p.X = tileSize - 1
-		}
-		if p.Y < 0 {
-			p.Y = 0
-		}
-		if p.Y >= tileSize {
-			p.Y = tileSize - 1
-		}
-	} else {
-		// moved to a new tile
-		m.NormalMode.Pos = np
-		if p.X < 0 {
-			p.X = tileSize - 1
-		}
-		if p.X >= tileSize {
-			p.X = 0
-		}
-		if p.Y < 0 {
-			p.Y = tileSize - 1
-		}
-		if p.Y >= tileSize {
-			p.Y = 0
-		}
-		m.Pos = p
+	// moved to a new tile if needed
+	m.NormalMode.Pos = np
+	if p.X < 0 {
+		p.X = tileSize - 1
 	}
+	if p.X >= tileSize {
+		p.X = 0
+	}
+	if p.Y < 0 {
+		p.Y = tileSize - 1
+	}
+	if p.Y >= tileSize {
+		p.Y = 0
+	}
+	m.Pos = p
 }
 
 func (m *ZoomMode) Update() error {
