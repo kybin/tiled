@@ -10,6 +10,7 @@
 	- Physical property
 - NormalMode
 	- Camera
+		- View frustum (done)
 	- Selection
 - ZoomMode
 	- Better color picking method
