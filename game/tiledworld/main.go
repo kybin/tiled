@@ -55,15 +55,20 @@ type WorldData struct {
 }
 
 type World struct {
-	Bound image.Rectangle
-	Map   map[image.Point]*Tile
+	Bound  image.Rectangle
+	Map    map[image.Point]*Tile
+	Camera *Camera
 }
 
 func NewWorld() *World {
 	w := &World{
-		Bound: image.Rect(0, 0, layoutWidth/tileSize, layoutHeight/tileSize),
+		Bound: image.Rect(0, 0, 16, 12),
 		Map:   make(map[image.Point]*Tile),
 	}
+	c := NewCamera(image.Pt(0, 0), image.Pt(8, 6))
+	c.SetBounds(w.Bound)
+	c.FollowMargin = 3
+	w.Camera = c
 	return w
 }
 
@@ -328,15 +333,16 @@ func (m *NormalMode) Update() error {
 		m.MovingDir = image.Pt(0, 0)
 		m.stepTicks = 0
 	}
+	m.World.Camera.Follow(m.Pos)
 	return nil
 }
 
 func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	screen := ebiten.NewImage(layoutWidth, layoutHeight)
-	camRect := image.Rect(0, 0, layoutWidth, layoutHeight)
+	camRect := m.World.Camera.Rect()
 	tileImage := ebiten.NewImage(tileSize, tileSize)
-	minPos := image.Pt(camRect.Min.X/tileSize, camRect.Min.Y/tileSize)
-	maxPos := image.Pt(camRect.Max.X/tileSize, camRect.Max.Y/tileSize)
+	minPos := image.Pt(camRect.Min.X, camRect.Min.Y)
+	maxPos := image.Pt(camRect.Max.X, camRect.Max.Y)
 	for j := minPos.Y; j <= maxPos.Y; j++ {
 		for i := minPos.X; i <= maxPos.X; i++ {
 			tile, ok := m.World.Map[image.Pt(i, j)]
@@ -346,7 +352,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 				tileImage.Clear()
 			}
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(i)*tileSize, float64(j)*tileSize)
+			op.GeoM.Translate(float64(i-minPos.X)*tileSize, float64(j-minPos.Y)*tileSize)
 			screen.DrawImage(tileImage, op)
 		}
 	}
@@ -356,8 +362,8 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
-	y := float64(m.Pos.Y) + float64(m.MovingDir.Y)*float64(m.stepTicks)/maxStepTicks
+	x := float64(m.Pos.X-minPos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
+	y := float64(m.Pos.Y-minPos.Y) + float64(m.MovingDir.Y)*float64(m.stepTicks)/maxStepTicks
 	op.GeoM.Translate(x*tileSize, y*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
@@ -366,7 +372,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	op.GeoM.Translate(float64(m.copyTilePos.X)*tileSize, float64(m.copyTilePos.Y)*tileSize)
+	op.GeoM.Translate(float64(m.copyTilePos.X-minPos.X)*tileSize, float64(m.copyTilePos.Y-minPos.Y)*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw all matching cursor
 	cursorImage.Clear()
@@ -375,8 +381,11 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	for _, p := range m.World.TilePoses(m.ActionTile()) {
+		if !p.In(camRect) {
+			continue
+		}
 		op.GeoM.Reset()
-		op.GeoM.Translate(float64(p.X)*tileSize, float64(p.Y)*tileSize)
+		op.GeoM.Translate(float64(p.X-minPos.X)*tileSize, float64(p.Y-minPos.Y)*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
 	// draw slots at lower center
