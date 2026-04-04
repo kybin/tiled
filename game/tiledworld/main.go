@@ -23,7 +23,8 @@ const (
 	layoutWidth  = 320
 	layoutHeight = 240
 	zoomScale    = 8
-	maxStepTicks = 3
+	// maxSteps defines how many visual steps the cursor will have when its position changed.
+	maxSteps = 3
 )
 
 var (
@@ -172,7 +173,7 @@ type Mover struct {
 	Pos       image.Point
 	IsMoving  bool
 	MovingDir image.Point
-	stepTicks int
+	steps     int
 }
 
 func (m *Mover) ActionPos() image.Point {
@@ -312,15 +313,15 @@ func (m *NormalMode) Update() error {
 		}
 	}
 	if m.MovingDir == image.Pt(0, 0) {
-		m.stepTicks = 0
+		m.steps = 0
 	} else {
-		m.stepTicks += 1
+		m.steps += 1
 	}
-	if m.stepTicks >= maxStepTicks {
+	if m.steps >= maxSteps {
 		m.Move(m.MovingDir)
 		m.IsMoving = false
 		m.MovingDir = image.Pt(0, 0)
-		m.stepTicks = 0
+		m.steps = 0
 	}
 	m.World.Camera.Follow(m.Pos)
 	return nil
@@ -351,8 +352,8 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	x := float64(m.Pos.X-minPos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
-	y := float64(m.Pos.Y-minPos.Y) + float64(m.MovingDir.Y)*float64(m.stepTicks)/maxStepTicks
+	x := float64(m.Pos.X-minPos.X) + float64(m.MovingDir.X)*float64(m.steps)/maxSteps
+	y := float64(m.Pos.Y-minPos.Y) + float64(m.MovingDir.Y)*float64(m.steps)/maxSteps
 	op.GeoM.Translate(x*tileSize, y*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
@@ -575,15 +576,15 @@ func (m *ZoomMode) Update() error {
 		}
 	}
 	if m.MovingDir == image.Pt(0, 0) {
-		m.stepTicks = 0
+		m.steps = 0
 	} else {
-		m.stepTicks += 1
+		m.steps += 1
 	}
-	if m.stepTicks >= maxStepTicks {
+	if m.steps >= maxSteps {
 		m.Move(m.MovingDir)
 		m.IsMoving = false
 		m.MovingDir = image.Pt(0, 0)
-		m.stepTicks = 0
+		m.steps = 0
 	}
 	return nil
 }
@@ -636,8 +637,8 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.stepTicks)/maxStepTicks
-	y := float64(m.Pos.Y) + float64(m.MovingDir.Y)*float64(m.stepTicks)/maxStepTicks
+	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.steps)/maxSteps
+	y := float64(m.Pos.Y) + float64(m.MovingDir.Y)*float64(m.steps)/maxSteps
 	op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
 	screen.DrawImage(cursorImage, op)
 	// draw outline
