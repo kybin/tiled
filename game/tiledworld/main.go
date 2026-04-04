@@ -170,14 +170,32 @@ func keyDirection(k ebiten.Key) image.Point {
 }
 
 type Mover struct {
-	Pos       image.Point
-	IsMoving  bool
-	MovingDir image.Point
-	steps     int
+	Pos    image.Point
+	OldPos image.Point
+	steps  int
 }
 
-func (m *Mover) ActionPos() image.Point {
-	return m.Pos.Add(m.MovingDir)
+func (m *Mover) MoveTo(p image.Point) {
+	if p == m.Pos && p == m.OldPos {
+		return
+	}
+	if m.steps == 0 {
+		m.OldPos = m.Pos
+		m.Pos = p
+	}
+	m.steps += 1
+	if m.steps >= maxSteps {
+		m.OldPos = m.Pos
+		m.steps = 0
+	}
+}
+
+func (m *Mover) VisualPos() [2]float64 {
+	dir := m.Pos.Sub(m.OldPos)
+	return [2]float64{
+		float64(m.OldPos.X) + float64(dir.X)*float64(m.steps)/maxSteps,
+		float64(m.OldPos.Y) + float64(dir.Y)*float64(m.steps)/maxSteps,
+	}
 }
 
 type Mode interface {
@@ -192,39 +210,32 @@ type NormalMode struct {
 	TileSlots   [5]*Tile
 }
 
-func (m *NormalMode) Move(dir image.Point) {
-	if dir == image.Pt(0, 0) {
-		return
-	}
-	m.Pos = m.Pos.Add(dir)
-}
-
 func (m *NormalMode) NewTile() *Tile {
-	return m.World.NewTile(m.ActionPos())
+	return m.World.NewTile(m.Pos)
 }
 
 func (m *NormalMode) ActionTile() *Tile {
-	return m.World.TileAt(m.ActionPos())
+	return m.World.TileAt(m.Pos)
 }
 
 func (m *NormalMode) ClearTile() {
-	m.World.ClearTile(m.ActionPos())
+	m.World.ClearTile(m.Pos)
 }
 
 func (m *NormalMode) CopyPos() {
-	m.copyTilePos = m.ActionPos()
+	m.copyTilePos = m.Pos
 }
 
 func (m *NormalMode) PastePos() {
-	m.World.DuplicateTile(m.copyTilePos, m.ActionPos())
+	m.World.DuplicateTile(m.copyTilePos, m.Pos)
 }
 
 func (m *NormalMode) PasteTile(t *Tile) {
-	m.World.PutTile(m.ActionPos(), t)
+	m.World.PutTile(m.Pos, t)
 }
 
 func (m *NormalMode) MakeTileUnique() {
-	m.World.MakeTileUnique(m.ActionPos())
+	m.World.MakeTileUnique(m.Pos)
 }
 
 func (m *NormalMode) CopyTileToSlot(i int) {
@@ -255,6 +266,7 @@ func (m *NormalMode) Update() error {
 		ebiten.Key4,
 		ebiten.Key5,
 	}
+	dest := m.Pos
 	for _, k := range keys {
 		for i, sk := range slotKeys {
 			if k != sk {
@@ -303,26 +315,14 @@ func (m *NormalMode) Update() error {
 			}
 			continue
 		}
-		if !m.IsMoving {
+		if m.steps == 0 {
 			d := keyDirection(k)
 			if d != image.Pt(0, 0) {
-				m.IsMoving = true
-				m.MovingDir = d
-				continue
+				dest = dest.Add(d)
 			}
 		}
 	}
-	if m.MovingDir == image.Pt(0, 0) {
-		m.steps = 0
-	} else {
-		m.steps += 1
-	}
-	if m.steps >= maxSteps {
-		m.Move(m.MovingDir)
-		m.IsMoving = false
-		m.MovingDir = image.Pt(0, 0)
-		m.steps = 0
-	}
+	m.MoveTo(dest)
 	m.World.Camera.Follow(m.Pos)
 	return nil
 }
@@ -352,9 +352,8 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	x := float64(m.Pos.X-minPos.X) + float64(m.MovingDir.X)*float64(m.steps)/maxSteps
-	y := float64(m.Pos.Y-minPos.Y) + float64(m.MovingDir.Y)*float64(m.steps)/maxSteps
-	op.GeoM.Translate(x*tileSize, y*tileSize)
+	vp := m.VisualPos()
+	op.GeoM.Translate((vp[0]-float64(minPos.X))*tileSize, (vp[1]-float64(minPos.Y))*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
 	cursorImage.Clear()
@@ -430,14 +429,10 @@ type ZoomMode struct {
 	Lightness  int
 }
 
-func (m *ZoomMode) Move(dir image.Point) {
-	if dir == image.Pt(0, 0) {
-		return
-	}
+func (m *ZoomMode) MoveTo(dest image.Point) {
 	p := m.Pos
-	p = p.Add(dir)
+	m.Mover.MoveTo(dest)
 	if p.In(image.Rect(0, 0, tileSize, tileSize)) {
-		m.Pos = p
 		return
 	}
 	// user go outside of the tile
@@ -456,6 +451,8 @@ func (m *ZoomMode) Move(dir image.Point) {
 	}
 	// moved to a new tile if needed
 	m.NormalMode.Pos = np
+	m.NormalMode.OldPos = np
+	m.NormalMode.steps = 0
 	if p.X < 0 {
 		p.X = tileSize - 1
 	}
@@ -483,6 +480,7 @@ func (m *ZoomMode) Update() error {
 			shift = true
 		}
 	}
+	dest := m.Pos
 	if alt {
 		for _, k := range keys {
 			if k == ebiten.KeyArrowLeft {
@@ -536,17 +534,16 @@ func (m *ZoomMode) Update() error {
 		}
 	} else {
 		for _, k := range keys {
-			if !m.IsMoving {
+			if m.steps == 0 {
 				d := keyDirection(k)
 				if d != image.Pt(0, 0) {
-					m.IsMoving = true
-					m.MovingDir = d
+					dest = dest.Add(d)
 				}
 			}
 			if k == ebiten.KeyX {
 				tile := m.NormalMode.ActionTile()
 				if tile != nil {
-					p := m.ActionPos()
+					p := m.Pos
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
 			}
@@ -555,7 +552,7 @@ func (m *ZoomMode) Update() error {
 				if tile == nil {
 					tile = m.NormalMode.NewTile()
 				}
-				p := m.ActionPos()
+				p := m.Pos
 				c, _ := tile.Image.At(p.X, p.Y).(color.RGBA)
 				if c.A != 0 {
 					h, s, l := RGBToHSL(c)
@@ -569,23 +566,13 @@ func (m *ZoomMode) Update() error {
 				if tile == nil {
 					tile = m.NormalMode.NewTile()
 				}
-				p := m.ActionPos()
+				p := m.Pos
 				c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
 				tile.Image.Set(p.X, p.Y, c)
 			}
 		}
 	}
-	if m.MovingDir == image.Pt(0, 0) {
-		m.steps = 0
-	} else {
-		m.steps += 1
-	}
-	if m.steps >= maxSteps {
-		m.Move(m.MovingDir)
-		m.IsMoving = false
-		m.MovingDir = image.Pt(0, 0)
-		m.steps = 0
-	}
+	m.MoveTo(dest)
 	return nil
 }
 
@@ -637,8 +624,9 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	x := float64(m.Pos.X) + float64(m.MovingDir.X)*float64(m.steps)/maxSteps
-	y := float64(m.Pos.Y) + float64(m.MovingDir.Y)*float64(m.steps)/maxSteps
+	dir := m.Pos.Sub(m.OldPos)
+	x := float64(m.OldPos.X) + float64(dir.X)*float64(m.steps)/maxSteps
+	y := float64(m.OldPos.Y) + float64(dir.Y)*float64(m.steps)/maxSteps
 	op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
 	screen.DrawImage(cursorImage, op)
 	// draw outline
