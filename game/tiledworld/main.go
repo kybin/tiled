@@ -331,10 +331,8 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	screen := ebiten.NewImage(layoutWidth, layoutHeight)
 	camRect := m.World.Camera.Rect()
 	tileImage := ebiten.NewImage(tileSize, tileSize)
-	minPos := image.Pt(camRect.Min.X, camRect.Min.Y)
-	maxPos := image.Pt(camRect.Max.X, camRect.Max.Y)
-	for j := minPos.Y; j < maxPos.Y; j++ {
-		for i := minPos.X; i < maxPos.X; i++ {
+	for j := camRect.Min.Y; j < camRect.Max.Y; j++ {
+		for i := camRect.Min.X; i < camRect.Max.X; i++ {
 			tile, ok := m.World.Map[image.Pt(i, j)]
 			if ok {
 				tileImage.WritePixels(tile.Image.Pix)
@@ -342,7 +340,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 				tileImage.Clear()
 			}
 			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(i-minPos.X)*tileSize, float64(j-minPos.Y)*tileSize)
+			op.GeoM.Translate(float64(i-camRect.Min.X)*tileSize, float64(j-camRect.Min.Y)*tileSize)
 			screen.DrawImage(tileImage, op)
 		}
 	}
@@ -353,7 +351,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	vp := m.VisualPos()
-	op.GeoM.Translate((vp[0]-float64(minPos.X))*tileSize, (vp[1]-float64(minPos.Y))*tileSize)
+	op.GeoM.Translate((vp[0]-float64(camRect.Min.X))*tileSize, (vp[1]-float64(camRect.Min.Y))*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
 	cursorImage.Clear()
@@ -361,7 +359,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	op.GeoM.Translate(float64(m.copyTilePos.X-minPos.X)*tileSize, float64(m.copyTilePos.Y-minPos.Y)*tileSize)
+	op.GeoM.Translate(float64(m.copyTilePos.X-camRect.Min.X)*tileSize, float64(m.copyTilePos.Y-camRect.Min.Y)*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw all matching cursor
 	cursorImage.Clear()
@@ -374,7 +372,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 			continue
 		}
 		op.GeoM.Reset()
-		op.GeoM.Translate(float64(p.X-minPos.X)*tileSize, float64(p.Y-minPos.Y)*tileSize)
+		op.GeoM.Translate(float64(p.X-camRect.Min.X)*tileSize, float64(p.Y-camRect.Min.Y)*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
 	// draw slots at lower center
