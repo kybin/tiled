@@ -64,7 +64,7 @@ func NewWorld() *World {
 		Map: make(map[image.Point]*Tile),
 	}
 	c := NewCamera(image.Pt(0, 0), image.Pt(8, 6))
-	c.FollowMargin = 3
+	c.FollowMargin = 2
 	w.Camera = c
 	return w
 }
