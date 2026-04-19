@@ -40,13 +40,13 @@ func (c *Camera) Follow(p image.Point) {
 	tr := image.Point{}
 	if p.X < ir.Min.X {
 		tr.X = p.X - ir.Min.X
-	} else if p.X > ir.Max.X {
-		tr.X = p.X - ir.Max.X
+	} else if p.X > ir.Max.X-1 {
+		tr.X = p.X - ir.Max.X + 1
 	}
 	if p.Y < ir.Min.Y {
 		tr.Y = p.Y - ir.Min.Y
-	} else if p.Y > ir.Max.Y {
-		tr.Y = p.Y - ir.Max.Y
+	} else if p.Y > ir.Max.Y-1 {
+		tr.Y = p.Y - ir.Max.Y + 1
 	}
 	c.Origin = c.Origin.Add(tr)
 	// but don't go outside of camera bounds
@@ -58,13 +58,13 @@ func (c *Camera) Follow(p image.Point) {
 	tr = image.Point{}
 	if r.Min.X < b.Min.X {
 		tr.X = b.Min.X - r.Min.X
-	} else if r.Max.X > b.Max.X {
-		tr.X = b.Max.X - r.Max.X
+	} else if r.Max.X > b.Max.X-1 {
+		tr.X = b.Max.X - r.Max.X + 1
 	}
 	if r.Min.Y < b.Min.Y {
 		tr.Y = b.Min.Y - r.Min.Y
-	} else if r.Max.Y > b.Max.Y {
-		tr.Y = b.Max.Y - r.Max.Y
+	} else if r.Max.Y > b.Max.Y-1 {
+		tr.Y = b.Max.Y - r.Max.Y + 1
 	}
 	c.Origin = c.Origin.Add(tr)
 }
