@@ -661,6 +661,9 @@ func (g *Game) Update() error {
 		}
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		return ebiten.Termination
+	}
+	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		f, err := os.Create(g.SaveFile)
 		if err == nil {
 			enc := gob.NewEncoder(f)
@@ -675,7 +678,6 @@ func (g *Game) Update() error {
 			}
 			f.Close()
 		}
-		return ebiten.Termination
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		if g.Char.Mode == g.Char.NormalMode {
