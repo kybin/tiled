@@ -344,9 +344,12 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 			screen.DrawImage(tileImage, op)
 		}
 	}
+	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	camSize := camRect.Size()
+	drawOutline(screen, image.Rect(0, 0, camSize.X*tileSize, camSize.Y*tileSize), c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
-	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
+	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
