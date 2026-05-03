@@ -330,6 +330,7 @@ func (m *NormalMode) Update() error {
 func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	screen := ebiten.NewImage(layoutWidth, layoutHeight)
 	camRect := m.World.Camera.Rect()
+	camSize := camRect.Size()
 	tileImage := ebiten.NewImage(tileSize, tileSize)
 	for j := camRect.Min.Y; j < camRect.Max.Y; j++ {
 		for i := camRect.Min.X; i < camRect.Max.X; i++ {
@@ -345,7 +346,6 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	camSize := camRect.Size()
 	drawOutline(screen, image.Rect(0, 0, camSize.X*tileSize, camSize.Y*tileSize), c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
@@ -357,13 +357,15 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	op.GeoM.Translate((vp[0]-float64(camRect.Min.X))*tileSize, (vp[1]-float64(camRect.Min.Y))*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
-	cursorImage.Clear()
-	c = color.RGBA{R: 64, G: 64, B: 192, A: 128}
-	drawOutline(cursorImage, cursorImage.Bounds(), c)
-	op = &ebiten.DrawImageOptions{}
-	op.Blend = ebiten.BlendSourceOver
-	op.GeoM.Translate(float64(m.copyTilePos.X-camRect.Min.X)*tileSize, float64(m.copyTilePos.Y-camRect.Min.Y)*tileSize)
-	screen.DrawImage(cursorImage, op)
+	if m.copyTilePos.In(camRect) {
+		cursorImage.Clear()
+		c = color.RGBA{R: 64, G: 64, B: 192, A: 128}
+		drawOutline(cursorImage, cursorImage.Bounds(), c)
+		op = &ebiten.DrawImageOptions{}
+		op.Blend = ebiten.BlendSourceOver
+		op.GeoM.Translate(float64(m.copyTilePos.X-camRect.Min.X)*tileSize, float64(m.copyTilePos.Y-camRect.Min.Y)*tileSize)
+		screen.DrawImage(cursorImage, op)
+	}
 	// draw all matching cursor
 	cursorImage.Clear()
 	c = color.RGBA{R: 32, G: 32, B: 32, A: 32}
