@@ -10,6 +10,7 @@ import (
 	"image/png"
 	"log"
 	"os"
+	"runtime/debug"
 	"strconv"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
@@ -698,6 +699,19 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	defer func() {
+		r := recover()
+		if r != nil {
+			f, err := os.Create("err")
+			if err != nil {
+				// nothing I can do
+				return
+			}
+			defer f.Close()
+			f.WriteString(fmt.Sprintf("%s\n", debug.Stack()))
+			f.WriteString(fmt.Sprintf("%v", r))
+		}
+	}()
 	screen.Clear()
 	g.Char.Mode.Draw(screen)
 }
