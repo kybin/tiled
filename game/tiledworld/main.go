@@ -329,6 +329,54 @@ func (m *NormalMode) Update() error {
 
 func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	screen := ebiten.NewImage(layoutWidth, layoutHeight)
+	camSize := m.World.Camera.Rect().Size()
+	world := screen.SubImage(image.Rect(0, 0, camSize.X*tileSize, camSize.Y*tileSize)).(*ebiten.Image)
+	m.DrawWorld(world)
+	// draw slots at lower center
+	slotPad := 10
+	slotWidth := (tileSize+2)*len(m.TileSlots) + slotPad*len(m.TileSlots) // +2 for outline
+	slotHeight := tileSize + 2
+	mid := layoutWidth/2 + 1
+	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-5)
+	slotImage := ebiten.NewImage(tileSize+2, tileSize+2)
+	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	op := &ebiten.DrawImageOptions{}
+	at := image.Pt(slotOrigin.X, slotOrigin.Y)
+	for _, t := range m.TileSlots {
+		op.GeoM.Reset()
+		op.GeoM.Translate(float64(at.X), float64(at.Y))
+		slotImage.Clear()
+		draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), image.Black, image.Pt(0, 0), draw.Src)
+		if t != nil {
+			draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
+		}
+		drawOutline(slotImage, slotImage.Bounds(), c)
+		screen.DrawImage(slotImage, op)
+		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
+	}
+	op = &ebiten.DrawImageOptions{}
+	op.GeoM.Scale(2, 2)
+	fullscreen.DrawImage(screen, op)
+	op = &ebiten.DrawImageOptions{}
+	at = image.Pt(slotOrigin.X, slotOrigin.Y)
+	for i := range m.TileSlots {
+		top := &text.DrawOptions{}
+		top.GeoM.Translate(float64(at.X*2)+2, float64(at.Y*2))
+		top.ColorM.Scale(1, 1, 1, 0.5)
+		text.Draw(
+			fullscreen,
+			strconv.Itoa(i+1),
+			&text.GoTextFace{
+				Source: faceSource,
+				Size:   16,
+			},
+			top,
+		)
+		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
+	}
+}
+
+func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	camRect := m.World.Camera.Rect()
 	camSize := camRect.Size()
 	tileImage := ebiten.NewImage(tileSize, tileSize)
@@ -379,48 +427,6 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 		op.GeoM.Reset()
 		op.GeoM.Translate(float64(p.X-camRect.Min.X)*tileSize, float64(p.Y-camRect.Min.Y)*tileSize)
 		screen.DrawImage(cursorImage, op)
-	}
-	// draw slots at lower center
-	slotPad := 10
-	slotWidth := (tileSize+2)*len(m.TileSlots) + slotPad*len(m.TileSlots) // +2 for outline
-	slotHeight := tileSize + 2
-	mid := layoutWidth/2 + 1
-	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-5)
-	slotImage := ebiten.NewImage(tileSize+2, tileSize+2)
-	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	op = &ebiten.DrawImageOptions{}
-	at := image.Pt(slotOrigin.X, slotOrigin.Y)
-	for _, t := range m.TileSlots {
-		op.GeoM.Reset()
-		op.GeoM.Translate(float64(at.X), float64(at.Y))
-		slotImage.Clear()
-		draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), image.Black, image.Pt(0, 0), draw.Src)
-		if t != nil {
-			draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
-		}
-		drawOutline(slotImage, slotImage.Bounds(), c)
-		screen.DrawImage(slotImage, op)
-		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
-	}
-	op = &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(2, 2)
-	fullscreen.DrawImage(screen, op)
-	op = &ebiten.DrawImageOptions{}
-	at = image.Pt(slotOrigin.X, slotOrigin.Y)
-	for i := range m.TileSlots {
-		top := &text.DrawOptions{}
-		top.GeoM.Translate(float64(at.X*2)+2, float64(at.Y*2))
-		top.ColorM.Scale(1, 1, 1, 0.5)
-		text.Draw(
-			fullscreen,
-			strconv.Itoa(i+1),
-			&text.GoTextFace{
-				Source: faceSource,
-				Size:   16,
-			},
-			top,
-		)
-		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
 }
 
