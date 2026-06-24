@@ -40,6 +40,10 @@ func init() {
 	faceSource = s
 }
 
+type Point3 struct {
+	X, Y, Z int
+}
+
 func what(vs ...any) {
 	e, _ := os.Create("what")
 	e.WriteString(fmt.Sprintf("%v", vs))
@@ -51,18 +55,18 @@ type SaveData struct {
 }
 
 type WorldData struct {
-	Map     map[image.Point]int
+	Map     map[Point3]int
 	GetTile map[int]*Tile
 }
 
 type World struct {
-	Map    map[image.Point]*Tile
+	Layers []*Layer
 	Camera *Camera
 }
 
 func NewWorld() *World {
 	w := &World{
-		Map: make(map[image.Point]*Tile),
+		Layers: []*Layer{NewLayer()},
 	}
 	c := NewCamera(image.Pt(0, 0), image.Pt(8, 6))
 	c.FollowMargin = 2
@@ -70,81 +74,119 @@ func NewWorld() *World {
 	return w
 }
 
+// NewLayer creates a new layer then returns it's index.
+func (w *World) AddLayer() int {
+	w.Layers = append(w.Layers, NewLayer())
+	return len(w.Layers) - 1
+}
+
+func (w *World) RemoveLayer(i int) error {
+	if i < 0 {
+		return fmt.Errorf("don't accept negative index: %v", i)
+	}
+	if i >= len(w.Layers) {
+		return fmt.Errorf("index exceeded number of layers: %v", i)
+	}
+	if len(w.Layers) <= 1 {
+		return fmt.Errorf("world should have at lease 1 layer")
+	}
+	w.Layers = append(w.Layers[:i], w.Layers[i+1:]...)
+	return nil
+}
+
 func (w *World) ToData() *WorldData {
 	d := &WorldData{
-		Map:     make(map[image.Point]int),
+		Map:     make(map[Point3]int),
 		GetTile: make(map[int]*Tile),
 	}
 	tileID := make(map[*Tile]int)
-	for p, tile := range w.Map {
-		if tile == nil {
-			log.Fatal("should not have nil in world map")
+	for i, l := range w.Layers {
+		for p, tile := range l.Map {
+			if tile == nil {
+				log.Fatal("should not have nil in world map")
+			}
+			id := tileID[tile]
+			if id == 0 {
+				// unknown tile
+				id = len(tileID) + 1
+				tileID[tile] = id
+				d.GetTile[id] = tile
+			}
+			p3 := Point3{X: p.X, Y: p.Y, Z: i}
+			d.Map[p3] = id
 		}
-		id := tileID[tile]
-		if id == 0 {
-			// unknown tile
-			id = len(tileID) + 1
-			tileID[tile] = id
-			d.GetTile[id] = tile
-		}
-		d.Map[p] = id
 	}
 	return d
 }
 
 func (w *World) FromData(d *WorldData) {
-	for p, id := range d.Map {
+	for p3, id := range d.Map {
+		what(p3, "?")
+		for len(w.Layers)-1 < p3.Z {
+			w.Layers = append(w.Layers, NewLayer())
+		}
 		t := d.GetTile[id]
-		w.Map[p] = t
+		p := image.Point{p3.X, p3.Y}
+		w.Layers[p3.Z].Map[p] = t
 	}
 }
 
-func (w *World) NewTile(p image.Point) *Tile {
-	w.ClearTile(p)
+type Layer struct {
+	Map map[image.Point]*Tile
+}
+
+func NewLayer() *Layer {
+	return &Layer{
+		Map: make(map[image.Point]*Tile),
+	}
+}
+
+func (l *Layer) NewTile(p image.Point) *Tile {
+	l.ClearTile(p)
 	tile := &Tile{}
 	tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
-	w.Map[p] = tile
+	l.Map[p] = tile
 	return tile
 }
 
-func (w *World) ClearTile(p image.Point) {
-	delete(w.Map, p)
+func (l *Layer) ClearTile(p image.Point) {
+	delete(l.Map, p)
 	// TODO: clear the tile when all its references are gone
 }
 
-func (w *World) PutTile(p image.Point, t *Tile) {
+func (l *Layer) PutTile(p image.Point, t *Tile) {
 	if t == nil {
-		w.ClearTile(p)
+		l.ClearTile(p)
 		return
 	}
-	w.Map[p] = t
+	l.Map[p] = t
 }
 
-func (w *World) DuplicateTile(from image.Point, to image.Point) {
-	tile, ok := w.Map[from]
+func (l *Layer) DuplicateTile(from image.Point, to image.Point) {
+	tile, ok := l.Map[from]
 	if !ok {
-		w.ClearTile(to)
+		l.ClearTile(to)
 		return
 	}
-	w.Map[to] = tile
+	l.Map[to] = tile
 }
 
-func (w *World) MakeTileUnique(p image.Point) {
-	old, ok := w.Map[p]
+func (l *Layer) MakeTileUnique(p image.Point) {
+	old, ok := l.Map[p]
 	if !ok {
 		return
 	}
-	tile := w.NewTile(p)
+	tile := l.NewTile(p)
 	draw.Draw(tile.Image, tile.Image.Bounds(), old.Image, image.Pt(0, 0), draw.Src)
 }
 
-func (w *World) TileAt(p image.Point) *Tile {
-	return w.Map[p]
+func (l *Layer) TileAt(p image.Point) *Tile {
+	return l.Map[p]
 }
 
-func (w *World) TilePoses(tile *Tile) []image.Point {
+func (l *Layer) TilePoses(tile *Tile) []image.Point {
 	pts := make([]image.Point, 0)
-	for pt, t := range w.Map {
+	for pt, t := range l.Map {
 		if tile == t {
 			pts = append(pts, pt)
 		}
@@ -206,21 +248,43 @@ type Mode interface {
 
 type NormalMode struct {
 	Mover
-	World       *World
-	copyTilePos image.Point
-	TileSlots   [5]*Tile
+	World           *World
+	CurLayer        int
+	DisplayCurLayer bool
+	copyTilePos     image.Point
+	TileSlots       [5]*Tile
+}
+
+func (m *NormalMode) Layer() *Layer {
+	// World should have at least 1 layer.
+	return m.World.Layers[m.CurLayer]
 }
 
 func (m *NormalMode) NewTile() *Tile {
-	return m.World.NewTile(m.Pos)
+	return m.Layer().NewTile(m.Pos)
 }
 
 func (m *NormalMode) ActionTile() *Tile {
-	return m.World.TileAt(m.Pos)
+	return m.Layer().TileAt(m.Pos)
 }
 
 func (m *NormalMode) ClearTile() {
-	m.World.ClearTile(m.Pos)
+	m.Layer().ClearTile(m.Pos)
+}
+
+func (m *NormalMode) LayerUp() {
+	m.CurLayer++
+	n := len(m.World.Layers) - 1
+	if m.CurLayer > n {
+		m.CurLayer = n
+	}
+}
+
+func (m *NormalMode) LayerDown() {
+	m.CurLayer--
+	if m.CurLayer < 0 {
+		m.CurLayer = 0
+	}
 }
 
 func (m *NormalMode) CopyPos() {
@@ -228,15 +292,15 @@ func (m *NormalMode) CopyPos() {
 }
 
 func (m *NormalMode) PastePos() {
-	m.World.DuplicateTile(m.copyTilePos, m.Pos)
+	m.Layer().DuplicateTile(m.copyTilePos, m.Pos)
 }
 
 func (m *NormalMode) PasteTile(t *Tile) {
-	m.World.PutTile(m.Pos, t)
+	m.Layer().PutTile(m.Pos, t)
 }
 
 func (m *NormalMode) MakeTileUnique() {
-	m.World.MakeTileUnique(m.Pos)
+	m.Layer().MakeTileUnique(m.Pos)
 }
 
 func (m *NormalMode) CopyTileToSlot(i int) {
@@ -269,6 +333,30 @@ func (m *NormalMode) Update() error {
 	}
 	dest := m.Pos
 	for _, k := range keys {
+		if k == ebiten.KeyPageUp {
+			if !inpututil.IsKeyJustPressed(ebiten.KeyPageUp) {
+				continue
+			}
+			if m.CurLayer == len(m.World.Layers)-1 {
+				m.World.AddLayer()
+			}
+			m.CurLayer++
+			continue
+		}
+		if k == ebiten.KeyPageDown {
+			if !inpututil.IsKeyJustPressed(ebiten.KeyPageDown) {
+				continue
+			}
+			if m.CurLayer != 0 {
+				m.CurLayer--
+			}
+			continue
+		}
+		if k == ebiten.KeyE {
+			if inpututil.IsKeyJustPressed(ebiten.KeyE) {
+				m.DisplayCurLayer = !m.DisplayCurLayer
+			}
+		}
 		for i, sk := range slotKeys {
 			if k != sk {
 				continue
@@ -304,7 +392,7 @@ func (m *NormalMode) Update() error {
 				what(err)
 				panic(err)
 			}
-			for p, t := range m.World.Map {
+			for p, t := range m.Layer().Map {
 				tmin := p.Mul(tileSize)
 				tmax := p.Add(image.Pt(1, 1)).Mul(tileSize)
 				draw.Draw(screenshot, image.Rect(tmin.X, tmin.Y, tmax.X, tmax.Y), t.Image, image.Pt(0, 0), draw.Src)
@@ -375,23 +463,48 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 		)
 		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
+	top := &text.DrawOptions{
+		LayoutOptions: text.LayoutOptions{
+			PrimaryAlign: text.AlignEnd,
+		},
+	}
+	width, _ := fullscreen.Size()
+	top.GeoM.Translate(float64(width)-10, 10)
+	top.ColorM.Scale(1, 1, 1, 0.5)
+	text.Draw(
+		fullscreen,
+		fmt.Sprintf("Current Layer: %v", m.CurLayer),
+		&text.GoTextFace{
+			Source: faceSource,
+			Size:   16,
+		},
+		top,
+	)
 }
 
 func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	camRect := m.World.Camera.Rect()
 	camSize := camRect.Size()
 	tileImage := ebiten.NewImage(tileSize, tileSize)
-	for j := camRect.Min.Y; j < camRect.Max.Y; j++ {
-		for i := camRect.Min.X; i < camRect.Max.X; i++ {
-			tile, ok := m.World.Map[image.Pt(i, j)]
-			if ok {
-				tileImage.WritePixels(tile.Image.Pix)
-			} else {
-				tileImage.Clear()
+	var layers []*Layer
+	if m.DisplayCurLayer {
+		layers = []*Layer{m.Layer()}
+	} else {
+		layers = m.World.Layers
+	}
+	for _, l := range layers {
+		for j := camRect.Min.Y; j < camRect.Max.Y; j++ {
+			for i := camRect.Min.X; i < camRect.Max.X; i++ {
+				tile, ok := l.Map[image.Pt(i, j)]
+				if ok {
+					tileImage.WritePixels(tile.Image.Pix)
+				} else {
+					tileImage.Clear()
+				}
+				op := &ebiten.DrawImageOptions{}
+				op.GeoM.Translate(float64(i-camRect.Min.X)*tileSize, float64(j-camRect.Min.Y)*tileSize)
+				screen.DrawImage(tileImage, op)
 			}
-			op := &ebiten.DrawImageOptions{}
-			op.GeoM.Translate(float64(i-camRect.Min.X)*tileSize, float64(j-camRect.Min.Y)*tileSize)
-			screen.DrawImage(tileImage, op)
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
@@ -421,7 +534,7 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
-	for _, p := range m.World.TilePoses(m.ActionTile()) {
+	for _, p := range m.Layer().TilePoses(m.ActionTile()) {
 		if !p.In(camRect) {
 			continue
 		}

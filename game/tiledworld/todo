@@ -4,8 +4,6 @@
 	- Redefine/turn-off boundary
 	- Redefine tile image will limited to tile size
 - Layer
-	- Add layer
-	- Layer up/down
 - Tile
 	- Physical property
 - NormalMode
