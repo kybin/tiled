@@ -248,6 +248,7 @@ type Mode interface {
 
 type NormalMode struct {
 	Mover
+	Game            *Game
 	World           *World
 	CurLayer        int
 	DisplayCurLayer bool
@@ -370,6 +371,7 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyX {
 			m.ClearTile()
+			m.Game.Dirty = true
 			continue
 		}
 		if k == ebiten.KeyC {
@@ -378,6 +380,7 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyV {
 			m.PastePos()
+			m.Game.Dirty = true
 			continue
 		}
 		if k == ebiten.KeyD {
@@ -426,7 +429,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	slotWidth := (tileSize+2)*len(m.TileSlots) + slotPad*len(m.TileSlots) // +2 for outline
 	slotHeight := tileSize + 2
 	mid := layoutWidth/2 + 1
-	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-5)
+	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-25)
 	slotImage := ebiten.NewImage(tileSize+2, tileSize+2)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	op := &ebiten.DrawImageOptions{}
@@ -545,6 +548,7 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 }
 
 type ZoomMode struct {
+	Game       *Game
 	NormalMode *NormalMode
 	Mover
 	Hue        int
@@ -669,6 +673,7 @@ func (m *ZoomMode) Update() error {
 					p := m.Pos
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
+				m.Game.Dirty = true
 			}
 			if k == ebiten.KeyC {
 				tile := m.NormalMode.ActionTile()
@@ -685,6 +690,7 @@ func (m *ZoomMode) Update() error {
 				}
 			}
 			if k == ebiten.KeyV {
+				m.Game.Dirty = true
 				tile := m.NormalMode.ActionTile()
 				if tile == nil {
 					tile = m.NormalMode.NewTile()
@@ -770,8 +776,10 @@ type Character struct {
 }
 
 type Game struct {
-	Char     *Character
-	SaveFile string
+	Char                         *Character
+	SaveFile                     string
+	Dirty                        bool
+	askingQuitWithUnsavedChanges bool
 }
 
 func (g *Game) Update() error {
@@ -782,24 +790,27 @@ func (g *Game) Update() error {
 			ctrl = true
 		}
 	}
+	if g.askingQuitWithUnsavedChanges {
+		if inpututil.IsKeyJustPressed(ebiten.KeyY) {
+			g.save()
+			return ebiten.Termination
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyN) {
+			g.askingQuitWithUnsavedChanges = false
+			return nil
+		}
+		return nil
+	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		if g.Dirty {
+			g.askingQuitWithUnsavedChanges = true
+			return nil
+		}
 		return ebiten.Termination
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyS) {
-		f, err := os.Create(g.SaveFile)
-		if err == nil {
-			enc := gob.NewEncoder(f)
-			data := &SaveData{
-				WorldData: g.Char.NormalMode.World.ToData(),
-			}
-			if err := enc.Encode(data); err != nil {
-				// couldn't print in wsl with GOOS=windows
-				e, _ := os.Create("err")
-				e.WriteString(err.Error())
-				e.Close()
-			}
-			f.Close()
-		}
+		g.save()
+		g.Dirty = false
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		if g.Char.Mode == g.Char.NormalMode {
@@ -827,10 +838,46 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}()
 	screen.Clear()
 	g.Char.Mode.Draw(screen)
+	_, height := screen.Size()
+	if g.askingQuitWithUnsavedChanges {
+		top := &text.DrawOptions{
+			LayoutOptions: text.LayoutOptions{
+				SecondaryAlign: text.AlignEnd,
+			},
+		}
+		top.GeoM.Translate(10, float64(height)-10)
+		top.ColorM.Scale(1, 1, 1, 0.5)
+		text.Draw(
+			screen,
+			fmt.Sprintf("Want to quit without save your changes? (y/n)"),
+			&text.GoTextFace{
+				Source: faceSource,
+				Size:   16,
+			},
+			top,
+		)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return outsideWidth, outsideHeight
+}
+
+func (g *Game) save() {
+	f, err := os.Create(g.SaveFile)
+	if err == nil {
+		enc := gob.NewEncoder(f)
+		data := &SaveData{
+			WorldData: g.Char.NormalMode.World.ToData(),
+		}
+		if err := enc.Encode(data); err != nil {
+			// couldn't print in wsl with GOOS=windows
+			e, _ := os.Create("err")
+			e.WriteString(err.Error())
+			e.Close()
+		}
+		f.Close()
+	}
 }
 
 func main() {
@@ -856,12 +903,14 @@ func main() {
 		world.FromData(saved.WorldData)
 	}
 	normalMode := &NormalMode{
+		Game:  game,
 		World: world,
 	}
 	ch := &Character{
 		Mode:       normalMode,
 		NormalMode: normalMode,
 		ZoomMode: &ZoomMode{
+			Game:       game,
 			NormalMode: normalMode,
 			Saturation: 255,
 			Lightness:  128,
