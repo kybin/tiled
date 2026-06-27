@@ -334,23 +334,23 @@ func (m *NormalMode) Update() error {
 	}
 	dest := m.Pos
 	for _, k := range keys {
-		if k == ebiten.KeyPageUp {
-			if !inpututil.IsKeyJustPressed(ebiten.KeyPageUp) {
+		if k == ebiten.KeyMinus {
+			if !inpututil.IsKeyJustPressed(k) {
+				continue
+			}
+			if m.CurLayer != 0 {
+				m.CurLayer--
+			}
+			continue
+		}
+		if k == ebiten.KeyEqual {
+			if !inpututil.IsKeyJustPressed(k) {
 				continue
 			}
 			if m.CurLayer == len(m.World.Layers)-1 {
 				m.World.AddLayer()
 			}
 			m.CurLayer++
-			continue
-		}
-		if k == ebiten.KeyPageDown {
-			if !inpututil.IsKeyJustPressed(ebiten.KeyPageDown) {
-				continue
-			}
-			if m.CurLayer != 0 {
-				m.CurLayer--
-			}
 			continue
 		}
 		if k == ebiten.KeyE {
