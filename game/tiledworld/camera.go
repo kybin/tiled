@@ -1,15 +1,15 @@
 package main
 
-import "image"
-
 type Camera struct {
-	Origin       image.Point // top-left corner position
-	Size         image.Point
-	FollowMargin int
-	Bounds       *image.Rectangle
+	Origin       point // top-left corner position
+	Size         point
+	FollowMargin float32
+	// Bounds defines boundary that camera can navigate around.
+	// eg. world bounds
+	Bounds *rectangle
 }
 
-func NewCamera(origin, size image.Point) *Camera {
+func NewCamera(origin, size point) *Camera {
 	c := &Camera{
 		Origin: origin,
 	}
@@ -17,7 +17,7 @@ func NewCamera(origin, size image.Point) *Camera {
 	return c
 }
 
-func (c *Camera) SetSize(s image.Point) {
+func (c *Camera) SetSize(s point) {
 	if s.X < 1 {
 		s.X = 1
 	}
@@ -27,26 +27,26 @@ func (c *Camera) SetSize(s image.Point) {
 	c.Size = s
 }
 
-func (c *Camera) Rect() image.Rectangle {
+func (c *Camera) Rect() rectangle {
 	End := c.Origin.Add(c.Size)
-	return image.Rect(c.Origin.X, c.Origin.Y, End.X, End.Y)
+	return rect(c.Origin.X, c.Origin.Y, End.X, End.Y)
 }
 
-func (c *Camera) Follow(p image.Point) {
+func (c *Camera) Follow(p point) {
 	ir := c.Rect().Inset(c.FollowMargin) // inner rect
 	if p.In(ir) {
 		return
 	}
-	tr := image.Point{}
+	tr := point{}
 	if p.X < ir.Min.X {
 		tr.X = p.X - ir.Min.X
-	} else if p.X > ir.Max.X-1 {
-		tr.X = p.X - ir.Max.X + 1
+	} else if p.X > ir.Max.X {
+		tr.X = p.X - ir.Max.X
 	}
 	if p.Y < ir.Min.Y {
 		tr.Y = p.Y - ir.Min.Y
-	} else if p.Y > ir.Max.Y-1 {
-		tr.Y = p.Y - ir.Max.Y + 1
+	} else if p.Y > ir.Max.Y {
+		tr.Y = p.Y - ir.Max.Y
 	}
 	c.Origin = c.Origin.Add(tr)
 	// but don't go outside of camera bounds
@@ -55,16 +55,16 @@ func (c *Camera) Follow(p image.Point) {
 	if b == nil {
 		return
 	}
-	tr = image.Point{}
+	tr = point{}
 	if r.Min.X < b.Min.X {
 		tr.X = b.Min.X - r.Min.X
-	} else if r.Max.X > b.Max.X-1 {
-		tr.X = b.Max.X - r.Max.X + 1
+	} else if r.Max.X > b.Max.X {
+		tr.X = b.Max.X - r.Max.X
 	}
 	if r.Min.Y < b.Min.Y {
 		tr.Y = b.Min.Y - r.Min.Y
-	} else if r.Max.Y > b.Max.Y-1 {
-		tr.Y = b.Max.Y - r.Max.Y + 1
+	} else if r.Max.Y > b.Max.Y {
+		tr.Y = b.Max.Y - r.Max.Y
 	}
 	c.Origin = c.Origin.Add(tr)
 }

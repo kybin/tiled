@@ -64,11 +64,70 @@ type World struct {
 	Camera *Camera
 }
 
+type point struct {
+	X, Y float32
+}
+
+func pt(x, y float32) point {
+	return point{X: x, Y: y}
+}
+
+func (p point) Add(q point) point {
+	return point{p.X + q.X, p.Y + q.Y}
+}
+
+func (p point) Mul(a float32) point {
+	return point{p.X * a, p.Y * a}
+}
+
+func (p point) In(r rectangle) bool {
+	if p.X < r.Min.X || p.X >= r.Max.X {
+		return false
+	}
+	if p.Y < r.Min.Y || p.Y >= r.Max.Y {
+		return false
+	}
+	return true
+}
+
+type rectangle struct {
+	Min, Max point
+}
+
+func rect(xmin, ymin, xmax, ymax float32) rectangle {
+	return rectangle{
+		Min: point{X: xmin, Y: ymin},
+		Max: point{X: xmax, Y: ymax},
+	}
+}
+
+func (r rectangle) Inset(a float32) rectangle {
+	if r.Max.X-r.Min.X < a {
+		r.Min.X = (r.Min.X + r.Max.X) / 2
+		r.Max.X = r.Min.X
+	} else {
+		r.Min.X += a
+		r.Max.X -= a
+	}
+	if r.Max.Y-r.Min.Y < a {
+		r.Min.Y = (r.Min.Y + r.Max.Y) / 2
+		r.Max.Y = r.Min.Y
+	} else {
+		r.Min.Y += a
+		r.Max.Y -= a
+	}
+	return r
+}
+
+func (r rectangle) ImageRectangle() image.Rectangle {
+	return image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X), int(r.Max.Y))
+}
+
 func NewWorld() *World {
 	w := &World{
 		Layers: []*Layer{NewLayer()},
 	}
-	c := NewCamera(image.Pt(0, 0), image.Pt(8, 6))
+	c := NewCamera(pt(0, 0), pt(8, 6))
 	c.FollowMargin = 2
 	w.Camera = c
 	return w
@@ -233,11 +292,11 @@ func (m *Mover) MoveTo(p image.Point) {
 	}
 }
 
-func (m *Mover) VisualPos() [2]float64 {
+func (m *Mover) VisualPos() point {
 	dir := m.Pos.Sub(m.OldPos)
-	return [2]float64{
-		float64(m.OldPos.X) + float64(dir.X)*float64(m.steps)/maxSteps,
-		float64(m.OldPos.Y) + float64(dir.Y)*float64(m.steps)/maxSteps,
+	return point{
+		float32(m.OldPos.X) + float32(dir.X)*float32(m.steps)/maxSteps,
+		float32(m.OldPos.Y) + float32(dir.Y)*float32(m.steps)/maxSteps,
 	}
 }
 
@@ -389,7 +448,7 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyP {
 			r := m.World.Camera.Rect()
-			screenshot := image.NewRGBA(image.Rect(r.Min.X, r.Min.Y, r.Max.X*tileSize, r.Max.Y*tileSize))
+			screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
 			f, err := os.Create("screenshot.png")
 			if err != nil {
 				what(err)
@@ -415,14 +474,14 @@ func (m *NormalMode) Update() error {
 		}
 	}
 	m.MoveTo(dest)
-	m.World.Camera.Follow(m.Pos)
+	m.World.Camera.Follow(m.VisualPos())
 	return nil
 }
 
 func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	screen := ebiten.NewImage(layoutWidth, layoutHeight)
-	camSize := m.World.Camera.Rect().Size()
-	world := screen.SubImage(image.Rect(0, 0, camSize.X*tileSize, camSize.Y*tileSize)).(*ebiten.Image)
+	camSize := m.World.Camera.Size
+	world := screen.SubImage(image.Rect(0, 0, int(camSize.X)*tileSize, int(camSize.Y)*tileSize)).(*ebiten.Image)
 	m.DrawWorld(world)
 	// draw slots at lower center
 	slotPad := 10
@@ -487,7 +546,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 
 func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	camRect := m.World.Camera.Rect()
-	camSize := camRect.Size()
+	camSize := m.World.Camera.Size
 	tileImage := ebiten.NewImage(tileSize, tileSize)
 	var layers []*Layer
 	if m.DisplayCurLayer {
@@ -496,8 +555,8 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 		layers = m.World.Layers
 	}
 	for _, l := range layers {
-		for j := camRect.Min.Y; j < camRect.Max.Y; j++ {
-			for i := camRect.Min.X; i < camRect.Max.X; i++ {
+		for j := int(camRect.Min.Y); j < int(camRect.Max.Y)+1; j++ {
+			for i := int(camRect.Min.X); i < int(camRect.Max.X)+1; i++ {
 				tile, ok := l.Map[image.Pt(i, j)]
 				if ok {
 					tileImage.WritePixels(tile.Image.Pix)
@@ -505,13 +564,13 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 					tileImage.Clear()
 				}
 				op := &ebiten.DrawImageOptions{}
-				op.GeoM.Translate(float64(i-camRect.Min.X)*tileSize, float64(j-camRect.Min.Y)*tileSize)
+				op.GeoM.Translate((float64(i)-float64(camRect.Min.X))*tileSize, (float64(j)-float64(camRect.Min.Y))*tileSize)
 				screen.DrawImage(tileImage, op)
 			}
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, image.Rect(0, 0, camSize.X*tileSize, camSize.Y*tileSize), c)
+	drawOutline(screen, image.Rect(0, 0, int(camSize.X)*tileSize, int(camSize.Y)*tileSize), c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
@@ -519,16 +578,16 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	vp := m.VisualPos()
-	op.GeoM.Translate((vp[0]-float64(camRect.Min.X))*tileSize, (vp[1]-float64(camRect.Min.Y))*tileSize)
+	op.GeoM.Translate(float64(vp.X-camRect.Min.X)*tileSize, float64(vp.Y-camRect.Min.Y)*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
-	if m.copyTilePos.In(camRect) {
+	if m.copyTilePos.In(camRect.ImageRectangle()) {
 		cursorImage.Clear()
 		c = color.RGBA{R: 64, G: 64, B: 192, A: 128}
 		drawOutline(cursorImage, cursorImage.Bounds(), c)
 		op = &ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
-		op.GeoM.Translate(float64(m.copyTilePos.X-camRect.Min.X)*tileSize, float64(m.copyTilePos.Y-camRect.Min.Y)*tileSize)
+		op.GeoM.Translate((float64(m.copyTilePos.X)-float64(camRect.Min.X))*tileSize, (float64(m.copyTilePos.Y)-float64(camRect.Min.Y))*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
 	// draw all matching cursor
@@ -538,11 +597,11 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	op = &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	for _, p := range m.Layer().TilePoses(m.ActionTile()) {
-		if !p.In(camRect) {
+		if !p.In(camRect.ImageRectangle()) {
 			continue
 		}
 		op.GeoM.Reset()
-		op.GeoM.Translate(float64(p.X-camRect.Min.X)*tileSize, float64(p.Y-camRect.Min.Y)*tileSize)
+		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
 }
