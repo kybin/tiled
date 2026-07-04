@@ -307,12 +307,12 @@ type Mode interface {
 
 type NormalMode struct {
 	Mover
-	Game            *Game
 	World           *World
 	CurLayer        int
 	DisplayCurLayer bool
 	copyTilePos     image.Point
 	TileSlots       [5]*Tile
+	Dirty           *bool
 }
 
 func (m *NormalMode) Layer() *Layer {
@@ -430,7 +430,7 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyX {
 			m.ClearTile()
-			m.Game.Dirty = true
+			*m.Dirty = true
 			continue
 		}
 		if k == ebiten.KeyC {
@@ -439,7 +439,7 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyV {
 			m.PastePos()
-			m.Game.Dirty = true
+			*m.Dirty = true
 			continue
 		}
 		if k == ebiten.KeyD {
@@ -607,7 +607,7 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 }
 
 type ZoomMode struct {
-	Game       *Game
+	Dirty      *bool
 	NormalMode *NormalMode
 	Mover
 	Hue        int
@@ -732,7 +732,7 @@ func (m *ZoomMode) Update() error {
 					p := m.Pos
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
-				m.Game.Dirty = true
+				*m.Dirty = true
 			}
 			if k == ebiten.KeyC {
 				tile := m.NormalMode.ActionTile()
@@ -749,7 +749,7 @@ func (m *ZoomMode) Update() error {
 				}
 			}
 			if k == ebiten.KeyV {
-				m.Game.Dirty = true
+				*m.Dirty = true
 				tile := m.NormalMode.ActionTile()
 				if tile == nil {
 					tile = m.NormalMode.NewTile()
@@ -828,16 +828,12 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	fullscreen.DrawImage(screen, op)
 }
 
-type Character struct {
-	Mode       Mode
-	NormalMode *NormalMode
-	ZoomMode   *ZoomMode
-}
-
 type Game struct {
-	Char                         *Character
+	Mode                         Mode
+	NormalMode                   *NormalMode
+	ZoomMode                     *ZoomMode
 	SaveFile                     string
-	Dirty                        bool
+	Dirty                        *bool
 	askingQuitWithUnsavedChanges bool
 }
 
@@ -861,7 +857,7 @@ func (g *Game) Update() error {
 		return nil
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyQ) {
-		if g.Dirty {
+		if *g.Dirty {
 			g.askingQuitWithUnsavedChanges = true
 			return nil
 		}
@@ -869,16 +865,16 @@ func (g *Game) Update() error {
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		g.save()
-		g.Dirty = false
+		*g.Dirty = false
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		if g.Char.Mode == g.Char.NormalMode {
-			g.Char.Mode = g.Char.ZoomMode
+		if g.Mode == g.NormalMode {
+			g.Mode = g.ZoomMode
 		} else {
-			g.Char.Mode = g.Char.NormalMode
+			g.Mode = g.NormalMode
 		}
 	}
-	return g.Char.Mode.Update()
+	return g.Mode.Update()
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -896,7 +892,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}()
 	screen.Clear()
-	g.Char.Mode.Draw(screen)
+	g.Mode.Draw(screen)
 	_, height := screen.Size()
 	if g.askingQuitWithUnsavedChanges {
 		top := &text.DrawOptions{
@@ -927,7 +923,7 @@ func (g *Game) save() {
 	if err == nil {
 		enc := gob.NewEncoder(f)
 		data := &SaveData{
-			WorldData: g.Char.NormalMode.World.ToData(),
+			WorldData: g.NormalMode.World.ToData(),
 		}
 		if err := enc.Encode(data); err != nil {
 			// couldn't print in wsl with GOOS=windows
@@ -940,14 +936,12 @@ func (g *Game) save() {
 }
 
 func main() {
-	game := &Game{
-		SaveFile: "save",
-	}
 	// get World from save data if exists
+	saveFile := "save"
 	world := NewWorld()
 	gob.Register(SaveData{})
 	saved := &SaveData{}
-	f, err := os.Open(game.SaveFile)
+	f, err := os.Open(saveFile)
 	if err == nil {
 		defer f.Close()
 		dec := gob.NewDecoder(f)
@@ -961,21 +955,23 @@ func main() {
 		}
 		world.FromData(saved.WorldData)
 	}
+	dirty := false
 	normalMode := &NormalMode{
-		Game:  game,
 		World: world,
+		Dirty: &dirty,
 	}
-	ch := &Character{
+	game := &Game{
 		Mode:       normalMode,
 		NormalMode: normalMode,
 		ZoomMode: &ZoomMode{
-			Game:       game,
 			NormalMode: normalMode,
 			Saturation: 255,
 			Lightness:  128,
+			Dirty:      &dirty,
 		},
+		Dirty:    &dirty,
+		SaveFile: saveFile,
 	}
-	game.Char = ch
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Tiled World")
