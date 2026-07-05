@@ -180,7 +180,6 @@ func (w *World) ToData() *WorldData {
 
 func (w *World) FromData(d *WorldData) {
 	for p3, id := range d.Map {
-		what(p3, "?")
 		for len(w.Layers)-1 < p3.Z {
 			w.Layers = append(w.Layers, NewLayer())
 		}
