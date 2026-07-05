@@ -531,8 +531,18 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 		},
 	}
 	width, _ := fullscreen.Size()
-	top.GeoM.Translate(float64(width)-10, 10)
 	top.ColorM.Scale(1, 1, 1, 0.5)
+	top.GeoM.Translate(float64(width)-10, 10)
+	text.Draw(
+		fullscreen,
+		fmt.Sprintf("Exclusive View (E): %v", m.DisplayCurLayer),
+		&text.GoTextFace{
+			Source: faceSource,
+			Size:   16,
+		},
+		top,
+	)
+	top.GeoM.Translate(0, 20)
 	text.Draw(
 		fullscreen,
 		fmt.Sprintf("Current Layer: %v", m.CurLayer),
