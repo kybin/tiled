@@ -306,12 +306,19 @@ type Mode interface {
 
 type NormalMode struct {
 	Mover
-	World           *World
-	CurLayer        int
-	DisplayCurLayer bool
-	copyTilePos     image.Point
-	TileSlots       [5]*Tile
-	Dirty           *bool
+	World         *World
+	CurLayer      int
+	ExclusiveMode bool
+	copyTilePos   image.Point
+	PosSlots      [5]*image.Point
+	Dirty         *bool
+}
+
+func (m *NormalMode) ActiveLayers() []*Layer {
+	if m.ExclusiveMode {
+		return []*Layer{m.Layer()}
+	}
+	return m.World.Layers
 }
 
 func (m *NormalMode) Layer() *Layer {
@@ -328,7 +335,18 @@ func (m *NormalMode) ActionTile() *Tile {
 }
 
 func (m *NormalMode) ClearTile() {
-	m.Layer().ClearTile(m.Pos)
+	for _, l := range m.ActiveLayers() {
+		l.ClearTile(m.Pos)
+	}
+}
+
+func (m *NormalMode) TilesAt(p image.Point) []*Tile {
+	tiles := make([]*Tile, 0, len(m.World.Layers))
+	for _, l := range m.World.Layers {
+		t := l.TileAt(p)
+		tiles = append(tiles, t)
+	}
+	return tiles
 }
 
 func (m *NormalMode) LayerUp() {
@@ -351,26 +369,20 @@ func (m *NormalMode) CopyPos() {
 }
 
 func (m *NormalMode) PastePos() {
-	m.Layer().DuplicateTile(m.copyTilePos, m.Pos)
-}
-
-func (m *NormalMode) PasteTile(t *Tile) {
-	m.Layer().PutTile(m.Pos, t)
-}
-
-func (m *NormalMode) MakeTileUnique() {
-	m.Layer().MakeTileUnique(m.Pos)
-}
-
-func (m *NormalMode) CopyTileToSlot(i int) {
-	if i >= 0 && i < len(m.TileSlots) {
-		m.TileSlots[i] = m.ActionTile()
+	for _, l := range m.ActiveLayers() {
+		l.DuplicateTile(m.copyTilePos, m.Pos)
 	}
 }
 
-func (m *NormalMode) PasteTileFromSlot(i int) {
-	if i >= 0 && i < len(m.TileSlots) {
-		m.PasteTile(m.TileSlots[i])
+func (m *NormalMode) PasteTile(t *Tile) {
+	for _, l := range m.ActiveLayers() {
+		l.PutTile(m.Pos, t)
+	}
+}
+
+func (m *NormalMode) MakeTileUnique() {
+	for _, l := range m.ActiveLayers() {
+		l.MakeTileUnique(m.Pos)
 	}
 }
 
@@ -413,7 +425,7 @@ func (m *NormalMode) Update() error {
 		}
 		if k == ebiten.KeyE {
 			if inpututil.IsKeyJustPressed(ebiten.KeyE) {
-				m.DisplayCurLayer = !m.DisplayCurLayer
+				m.ExclusiveMode = !m.ExclusiveMode
 			}
 		}
 		for i, sk := range slotKeys {
@@ -421,9 +433,21 @@ func (m *NormalMode) Update() error {
 				continue
 			}
 			if alt {
-				m.CopyTileToSlot(i)
+				p := m.Pos
+				m.PosSlots[i] = &p
 			} else {
-				m.PasteTileFromSlot(i)
+				from := m.PosSlots[i]
+				if from != nil {
+					tiles := m.TilesAt(*from)
+					for i := range m.World.Layers {
+						t := tiles[i]
+						if t == nil {
+							delete(m.World.Layers[i].Map, m.Pos)
+							continue
+						}
+						m.World.Layers[i].Map[m.Pos] = t
+					}
+				}
 			}
 			break
 		}
@@ -484,7 +508,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	m.DrawWorld(world)
 	// draw slots at lower center
 	slotPad := 10
-	slotWidth := (tileSize+2)*len(m.TileSlots) + slotPad*len(m.TileSlots) // +2 for outline
+	slotWidth := (tileSize+2)*len(m.PosSlots) + slotPad*len(m.PosSlots) // +2 for outline
 	slotHeight := tileSize + 2
 	mid := layoutWidth/2 + 1
 	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-25)
@@ -492,13 +516,17 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	op := &ebiten.DrawImageOptions{}
 	at := image.Pt(slotOrigin.X, slotOrigin.Y)
-	for _, t := range m.TileSlots {
+	for _, pos := range m.PosSlots {
 		op.GeoM.Reset()
 		op.GeoM.Translate(float64(at.X), float64(at.Y))
 		slotImage.Clear()
 		draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), image.Black, image.Pt(0, 0), draw.Src)
-		if t != nil {
-			draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
+		if pos != nil {
+			for _, t := range m.TilesAt(*pos) {
+				if t != nil {
+					draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
+				}
+			}
 		}
 		drawOutline(slotImage, slotImage.Bounds(), c)
 		screen.DrawImage(slotImage, op)
@@ -509,7 +537,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	fullscreen.DrawImage(screen, op)
 	op = &ebiten.DrawImageOptions{}
 	at = image.Pt(slotOrigin.X, slotOrigin.Y)
-	for i := range m.TileSlots {
+	for i := range m.PosSlots {
 		top := &text.DrawOptions{}
 		top.GeoM.Translate(float64(at.X*2)+2, float64(at.Y*2))
 		top.ColorM.Scale(1, 1, 1, 0.5)
@@ -534,7 +562,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	top.GeoM.Translate(float64(width)-10, 10)
 	text.Draw(
 		fullscreen,
-		fmt.Sprintf("Exclusive View (E): %v", m.DisplayCurLayer),
+		fmt.Sprintf("Exclusive View (E): %v", m.ExclusiveMode),
 		&text.GoTextFace{
 			Source: faceSource,
 			Size:   16,
@@ -558,7 +586,7 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	camSize := m.World.Camera.Size
 	tileImage := ebiten.NewImage(tileSize, tileSize)
 	var layers []*Layer
-	if m.DisplayCurLayer {
+	if m.ExclusiveMode {
 		layers = []*Layer{m.Layer()}
 	} else {
 		layers = m.World.Layers
