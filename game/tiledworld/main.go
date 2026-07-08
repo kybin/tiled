@@ -299,7 +299,7 @@ func (m *Mover) VisualPos() point {
 	}
 }
 
-type Mode interface {
+type UpdateDrawer interface {
 	Update() error
 	Draw(*ebiten.Image)
 }
@@ -866,7 +866,7 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 }
 
 type Game struct {
-	Mode                         Mode
+	Mode                         UpdateDrawer
 	NormalMode                   *NormalMode
 	ZoomMode                     *ZoomMode
 	SaveFile                     string
