@@ -302,6 +302,7 @@ func (m *Mover) VisualPos() point {
 type UpdateDrawer interface {
 	Update() error
 	Draw(*ebiten.Image)
+	SubUpdateDrawers() []UpdateDrawer
 }
 
 type NormalMode struct {
@@ -643,6 +644,10 @@ func (m *NormalMode) DrawWorld(screen *ebiten.Image) {
 	}
 }
 
+func (m *NormalMode) SubUpdateDrawers() []UpdateDrawer {
+	return []UpdateDrawer{}
+}
+
 type ZoomMode struct {
 	Dirty      *bool
 	NormalMode *NormalMode
@@ -865,6 +870,10 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	fullscreen.DrawImage(screen, op)
 }
 
+func (m *ZoomMode) SubUpdateDrawers() []UpdateDrawer {
+	return []UpdateDrawer{}
+}
+
 type Game struct {
 	Mode                         UpdateDrawer
 	NormalMode                   *NormalMode
@@ -929,7 +938,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}()
 	screen.Clear()
-	g.Mode.Draw(screen)
+	for _, sud := range g.SubUpdateDrawers() {
+		sud.Draw(screen)
+	}
 	_, height := screen.Size()
 	if g.askingQuitWithUnsavedChanges {
 		top := &text.DrawOptions{
@@ -949,6 +960,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			top,
 		)
 	}
+}
+
+func (g *Game) SubUpdateDrawers() []UpdateDrawer {
+	return []UpdateDrawer{g.Mode}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
