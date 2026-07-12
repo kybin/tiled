@@ -945,7 +945,6 @@ func (g *Game) Update() error {
 	}
 	if g.askingQuitWithUnsavedChanges {
 		if inpututil.IsKeyJustPressed(ebiten.KeyY) {
-			g.save()
 			return ebiten.Termination
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyN) {
