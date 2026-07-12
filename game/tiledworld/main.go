@@ -617,6 +617,7 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 	if m == nil {
 		return
 	}
+	origin := screen.Bounds().Min
 	camRect := m.WorldView.Camera.Rect()
 	camSize := m.WorldView.Camera.Size
 	tileImage := ebiten.NewImage(tileSize, tileSize)
@@ -636,13 +637,14 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 					tileImage.Clear()
 				}
 				op := &ebiten.DrawImageOptions{}
+				op.GeoM.Translate(float64(origin.X), float64(origin.Y))
 				op.GeoM.Translate((float64(i)-float64(camRect.Min.X))*tileSize, (float64(j)-float64(camRect.Min.Y))*tileSize)
 				screen.DrawImage(tileImage, op)
 			}
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, image.Rect(0, 0, int(camSize.X)*tileSize, int(camSize.Y)*tileSize), c)
+	drawOutline(screen, image.Rect(origin.X, origin.Y, origin.X+int(camSize.X)*tileSize, origin.Y+int(camSize.Y)*tileSize), c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
@@ -650,6 +652,7 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	vp := m.VisualPos()
+	op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 	op.GeoM.Translate(float64(vp.X-camRect.Min.X)*tileSize, float64(vp.Y-camRect.Min.Y)*tileSize)
 	screen.DrawImage(cursorImage, op)
 	// draw copy cursor
@@ -659,6 +662,7 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 		drawOutline(cursorImage, cursorImage.Bounds(), c)
 		op = &ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
+		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 		op.GeoM.Translate((float64(m.copyTilePos.X)-float64(camRect.Min.X))*tileSize, (float64(m.copyTilePos.Y)-float64(camRect.Min.Y))*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
@@ -673,6 +677,7 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 			continue
 		}
 		op.GeoM.Reset()
+		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
 		screen.DrawImage(cursorImage, op)
 	}
@@ -1081,7 +1086,7 @@ func main() {
 		Dirty:  &dirty,
 	}
 	normalMode.WorldView = &WorldView{
-		bounds:     image.Rect(0, 0, 8*tileSize, 6*tileSize),
+		bounds:     image.Rect(10, 10, 10+8*tileSize, 10+6*tileSize),
 		normalMode: normalMode,
 		Camera:     NewCamera(pt(0, 0), pt(8, 6)),
 	}
