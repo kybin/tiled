@@ -512,11 +512,16 @@ func (m *NormalMode) Update() error {
 	}
 	m.MoveTo(dest)
 	m.WorldView.Camera.Follow(m.VisualPos())
+	for _, ud := range m.SubUpdateDrawers() {
+		err := ud.Update()
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
-	screen := ebiten.NewImage(layoutWidth, layoutHeight)
+func (m *NormalMode) Draw(screen *ebiten.Image) {
 	for _, ud := range m.SubUpdateDrawers() {
 		subScreen := screen.SubImage(ud.Bounds()).(*ebiten.Image)
 		ud.Draw(subScreen)
@@ -527,13 +532,13 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	slotHeight := tileSize + 2
 	mid := layoutWidth/2 + 1
 	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-25)
-	slotImage := ebiten.NewImage(tileSize+2, tileSize+2)
+	slotImage := ebiten.NewImage((tileSize*2)+2, (tileSize*2)+2)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	op := &ebiten.DrawImageOptions{}
 	at := image.Pt(slotOrigin.X, slotOrigin.Y)
 	for _, pos := range m.PosSlots {
 		op.GeoM.Reset()
-		op.GeoM.Translate(float64(at.X), float64(at.Y))
+		op.GeoM.Translate(float64(at.X*2), float64(at.Y*2))
 		slotImage.Clear()
 		draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), image.Black, image.Pt(0, 0), draw.Src)
 		if pos != nil {
@@ -548,16 +553,13 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
 	op = &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(2, 2)
-	fullscreen.DrawImage(screen, op)
-	op = &ebiten.DrawImageOptions{}
 	at = image.Pt(slotOrigin.X, slotOrigin.Y)
 	for i := range m.PosSlots {
 		top := &text.DrawOptions{}
 		top.GeoM.Translate(float64(at.X*2)+2, float64(at.Y*2))
 		top.ColorM.Scale(1, 1, 1, 0.5)
 		text.Draw(
-			fullscreen,
+			screen,
 			strconv.Itoa(i+1),
 			&text.GoTextFace{
 				Source: faceSource,
@@ -572,11 +574,11 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 			PrimaryAlign: text.AlignEnd,
 		},
 	}
-	width, _ := fullscreen.Size()
+	width, _ := screen.Size()
 	top.ColorM.Scale(1, 1, 1, 0.5)
 	top.GeoM.Translate(float64(width)-10, 10)
 	text.Draw(
-		fullscreen,
+		screen,
 		fmt.Sprintf("Exclusive View (E): %v", m.ExclusiveMode),
 		&text.GoTextFace{
 			Source: faceSource,
@@ -586,7 +588,7 @@ func (m *NormalMode) Draw(fullscreen *ebiten.Image) {
 	)
 	top.GeoM.Translate(0, 20)
 	text.Draw(
-		fullscreen,
+		screen,
 		fmt.Sprintf("Current Layer: %v", m.CurLayer),
 		&text.GoTextFace{
 			Source: faceSource,
@@ -605,10 +607,19 @@ type WorldView struct {
 	normalMode *NormalMode
 	bounds     image.Rectangle
 	Camera     *Camera
+	hoverPos   *image.Point
 }
 
 func (v *WorldView) Update() error {
-	// it has no SubUpdateDrawers
+	cx, cy := ebiten.CursorPosition()
+	if !image.Pt(cx, cy).In(v.bounds) {
+		v.hoverPos = nil
+	} else {
+		relP := image.Pt(cx, cy).Sub(v.bounds.Min)
+		rx := relP.X / tileSize / 2
+		ry := relP.Y / tileSize / 2
+		v.hoverPos = &image.Point{X: int(v.Camera.Origin.X) + int(rx), Y: int(v.Camera.Origin.Y) + int(ry)}
+	}
 	return nil
 }
 
@@ -637,14 +648,15 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 					tileImage.Clear()
 				}
 				op := &ebiten.DrawImageOptions{}
-				op.GeoM.Translate(float64(origin.X), float64(origin.Y))
 				op.GeoM.Translate((float64(i)-float64(camRect.Min.X))*tileSize, (float64(j)-float64(camRect.Min.Y))*tileSize)
+				op.GeoM.Scale(2, 2)
+				op.GeoM.Translate(float64(origin.X), float64(origin.Y))
 				screen.DrawImage(tileImage, op)
 			}
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, image.Rect(origin.X, origin.Y, origin.X+int(camSize.X)*tileSize, origin.Y+int(camSize.Y)*tileSize), c)
+	drawOutline(screen, image.Rect(origin.X, origin.Y, origin.X+int(camSize.X)*tileSize*2, origin.Y+int(camSize.Y)*tileSize*2), c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
@@ -652,9 +664,23 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	vp := m.VisualPos()
-	op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 	op.GeoM.Translate(float64(vp.X-camRect.Min.X)*tileSize, float64(vp.Y-camRect.Min.Y)*tileSize)
+	op.GeoM.Scale(2, 2)
+	op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 	screen.DrawImage(cursorImage, op)
+	// draw hover cursor
+	if v.hoverPos != nil {
+		cursorImage := ebiten.NewImage(tileSize, tileSize)
+		c = color.RGBA{R: 192, G: 192, B: 192, A: 64}
+		drawOutline(cursorImage, cursorImage.Bounds(), c)
+		op := &ebiten.DrawImageOptions{}
+		op.Blend = ebiten.BlendSourceOver
+		p := v.hoverPos
+		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
+		op.GeoM.Scale(2, 2)
+		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
+		screen.DrawImage(cursorImage, op)
+	}
 	// draw copy cursor
 	if m.copyTilePos.In(camRect.ImageRectangle()) {
 		cursorImage.Clear()
@@ -662,8 +688,9 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 		drawOutline(cursorImage, cursorImage.Bounds(), c)
 		op = &ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
-		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 		op.GeoM.Translate((float64(m.copyTilePos.X)-float64(camRect.Min.X))*tileSize, (float64(m.copyTilePos.Y)-float64(camRect.Min.Y))*tileSize)
+		op.GeoM.Scale(2, 2)
+		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 		screen.DrawImage(cursorImage, op)
 	}
 	// draw all matching cursor
@@ -677,8 +704,9 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 			continue
 		}
 		op.GeoM.Reset()
-		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
+		op.GeoM.Scale(2, 2)
+		op.GeoM.Translate(float64(screen.Bounds().Min.X), float64(screen.Bounds().Min.Y))
 		screen.DrawImage(cursorImage, op)
 	}
 }
@@ -1086,7 +1114,7 @@ func main() {
 		Dirty:  &dirty,
 	}
 	normalMode.WorldView = &WorldView{
-		bounds:     image.Rect(10, 10, 10+8*tileSize, 10+6*tileSize),
+		bounds:     image.Rect(10, 10, 10+8*tileSize*2, 10+6*tileSize*2),
 		normalMode: normalMode,
 		Camera:     NewCamera(pt(0, 0), pt(8, 6)),
 	}
