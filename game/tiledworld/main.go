@@ -9,6 +9,7 @@ import (
 	"image/draw"
 	"image/png"
 	"log"
+	"math"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -618,7 +619,11 @@ func (v *WorldView) Update() error {
 		relP := image.Pt(cx, cy).Sub(v.bounds.Min)
 		rx := relP.X / tileSize / 2
 		ry := relP.Y / tileSize / 2
-		v.cursorPos = &image.Point{X: int(rx), Y: int(ry)}
+		v.cursorPos = &image.Point{X: int(rx) + int(math.Round(v.Camera.Origin.X)), Y: int(ry) + int(math.Round(v.Camera.Origin.Y))}
+	}
+	if v.cursorPos != nil && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		what(v.Camera.Origin.X, *v.cursorPos)
+		v.normalMode.MoveTo(*v.cursorPos)
 	}
 	return nil
 }
@@ -670,13 +675,13 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 	// draw hover cursor
 	if v.cursorPos != nil {
 		cursorImage := ebiten.NewImage(tileSize, tileSize)
-		c = color.RGBA{R: 192, G: 192, B: 192, A: 64}
+		c = color.RGBA{R: 192, G: 192, B: 192, A: 32}
 		drawOutline(cursorImage, cursorImage.Bounds(), c)
 		op := &ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
 		// cursorPos is a relative position to camRect
 		p := v.cursorPos
-		op.GeoM.Translate(float64(p.X)*tileSize, float64(p.Y)*tileSize)
+		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
 		halfScreen.DrawImage(cursorImage, op)
 	}
 	// draw copy cursor
