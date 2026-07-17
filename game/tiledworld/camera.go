@@ -3,7 +3,7 @@ package main
 type Camera struct {
 	Origin       point // top-left corner position
 	Size         point
-	FollowMargin float32
+	FollowMargin float64
 	// Bounds defines boundary that camera can navigate around.
 	// eg. world bounds
 	Bounds *rectangle

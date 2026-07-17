@@ -65,10 +65,10 @@ type World struct {
 }
 
 type point struct {
-	X, Y float32
+	X, Y float64
 }
 
-func pt(x, y float32) point {
+func pt(x, y float64) point {
 	return point{X: x, Y: y}
 }
 
@@ -76,7 +76,7 @@ func (p point) Add(q point) point {
 	return point{p.X + q.X, p.Y + q.Y}
 }
 
-func (p point) Mul(a float32) point {
+func (p point) Mul(a float64) point {
 	return point{p.X * a, p.Y * a}
 }
 
@@ -94,14 +94,14 @@ type rectangle struct {
 	Min, Max point
 }
 
-func rect(xmin, ymin, xmax, ymax float32) rectangle {
+func rect(xmin, ymin, xmax, ymax float64) rectangle {
 	return rectangle{
 		Min: point{X: xmin, Y: ymin},
 		Max: point{X: xmax, Y: ymax},
 	}
 }
 
-func (r rectangle) Inset(a float32) rectangle {
+func (r rectangle) Inset(a float64) rectangle {
 	if r.Max.X-r.Min.X < a {
 		r.Min.X = (r.Min.X + r.Max.X) / 2
 		r.Max.X = r.Min.X
@@ -291,8 +291,8 @@ func (m *Mover) MoveTo(p image.Point) {
 func (m *Mover) VisualPos() point {
 	dir := m.Pos.Sub(m.OldPos)
 	return point{
-		float32(m.OldPos.X) + float32(dir.X)*float32(m.steps)/maxSteps,
-		float32(m.OldPos.Y) + float32(dir.Y)*float32(m.steps)/maxSteps,
+		float64(m.OldPos.X) + float64(dir.X)*float64(m.steps)/maxSteps,
+		float64(m.OldPos.Y) + float64(dir.Y)*float64(m.steps)/maxSteps,
 	}
 }
 
