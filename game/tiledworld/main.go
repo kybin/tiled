@@ -102,6 +102,14 @@ func rect(xmin, ymin, xmax, ymax float64) rectangle {
 	}
 }
 
+func (r rectangle) Add(q point) rectangle {
+	return rect(r.Min.X+q.X, r.Min.Y+q.Y, r.Max.X+q.X, r.Max.Y+q.Y)
+}
+
+func (r rectangle) Scale(s float64) rectangle {
+	return rect(r.Min.X*s, r.Min.Y*s, r.Max.X*s, r.Max.Y*s)
+}
+
 func (r rectangle) Inset(a float64) rectangle {
 	if r.Max.X-r.Min.X < a {
 		r.Min.X = (r.Min.X + r.Max.X) / 2
@@ -1119,10 +1127,11 @@ func main() {
 		World:  world,
 		Dirty:  &dirty,
 	}
+	camBound := rect(0, 0, 8, 6)
 	normalMode.WorldView = &WorldView{
-		bounds:     image.Rect(10, 10, 10+8*tileSize*2, 10+6*tileSize*2),
+		bounds:     camBound.Scale(2 * tileSize).Add(pt(10, 10)).ImageRectangle(),
 		normalMode: normalMode,
-		Camera:     NewCamera(pt(0, 0), pt(8, 6)),
+		Camera:     NewCamera(camBound.Min, camBound.Max),
 	}
 	normalMode.WorldView.Camera.FollowMargin = 2
 	game := &Game{
