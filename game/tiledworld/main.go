@@ -658,8 +658,8 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 		layers = m.World.Layers
 	}
 	for _, l := range layers {
-		for j := int(camRect.Min.Y); j < int(camRect.Max.Y)+1; j++ {
-			for i := int(camRect.Min.X); i < int(camRect.Max.X)+1; i++ {
+		for j := int(camRect.Min.Y) - 1; j < int(camRect.Max.Y)+1; j++ {
+			for i := int(camRect.Min.X) - 1; i < int(camRect.Max.X)+1; i++ {
 				tile, ok := l.Map[image.Pt(i, j)]
 				if ok {
 					tileImage.WritePixels(tile.Image.Pix)
