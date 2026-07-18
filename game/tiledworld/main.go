@@ -1127,7 +1127,7 @@ func main() {
 		World:  world,
 		Dirty:  &dirty,
 	}
-	camBound := rect(0, 0, 8, 6)
+	camBound := rect(0, 0, 12, 8)
 	normalMode.WorldView = &WorldView{
 		bounds:     camBound.Scale(2 * tileSize).Add(pt(10, 10)).ImageRectangle(),
 		normalMode: normalMode,
