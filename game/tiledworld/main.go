@@ -626,7 +626,6 @@ func (v *WorldView) Update() error {
 		v.cursorPos = &image.Point{X: int(rx) + int(math.Round(v.Camera.Origin.X)), Y: int(ry) + int(math.Round(v.Camera.Origin.Y))}
 	}
 	if v.cursorPos != nil && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		what(v.Camera.Origin.X, *v.cursorPos)
 		v.normalMode.MoveTo(*v.cursorPos)
 	}
 	return nil
