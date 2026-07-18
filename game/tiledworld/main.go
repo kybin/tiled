@@ -611,7 +611,11 @@ type WorldView struct {
 }
 
 func (v *WorldView) Update() error {
+	// Points in World actually have size 1x1.
+	// Which the point represents top-left corner.
+	// Follow bottom-right corner as well.
 	v.Camera.Follow(v.normalMode.VisualPos())
+	v.Camera.Follow(v.normalMode.VisualPos().Add(pt(1, 1)))
 	cx, cy := ebiten.CursorPosition()
 	if !image.Pt(cx, cy).In(v.bounds) {
 		v.cursorPos = nil
