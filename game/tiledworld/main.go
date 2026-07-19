@@ -537,6 +537,16 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 		},
 		top,
 	)
+	top.GeoM.Translate(0, 20)
+	text.Draw(
+		screen,
+		fmt.Sprintf("Position: (%v, %v)", m.Pos.X, m.Pos.Y),
+		&text.GoTextFace{
+			Source: faceSource,
+			Size:   16,
+		},
+		top,
+	)
 }
 
 func (m *NormalMode) SubUpdateDrawers() []UpdateDrawer {
