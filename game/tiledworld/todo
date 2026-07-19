@@ -13,5 +13,10 @@
 - ZoomMode
 	- Better color picking method
 - PlayMode
+- UpdateDrawer
+	- change it to struct (?)
+	- add
+		- PixelSize() int
+		- DrawCanvas() error
 - Interact
 
