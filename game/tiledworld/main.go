@@ -475,25 +475,27 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	slotOrigin := image.Pt(mid-slotWidth/2, layoutHeight-slotHeight-25)
 	slotImage := ebiten.NewImage((tileSize*2)+2, (tileSize*2)+2)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	op := &ebiten.DrawImageOptions{}
 	at := image.Pt(slotOrigin.X, slotOrigin.Y)
+	tileImage := ebiten.NewImage(tileSize, tileSize)
 	for _, pos := range m.PosSlots {
-		op.GeoM.Reset()
-		op.GeoM.Translate(float64(at.X*2), float64(at.Y*2))
 		slotImage.Clear()
-		draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), image.Black, image.Pt(0, 0), draw.Src)
 		if pos != nil {
 			for _, t := range m.TilesAt(*pos) {
 				if t != nil {
-					draw.Draw(slotImage, image.Rect(1, 1, tileSize+1, tileSize+1), t.Image, image.Pt(0, 0), draw.Over)
+					tileImage.WritePixels(t.Image.Pix)
+					op := ebiten.DrawImageOptions{}
+					op.GeoM.Scale(2, 2)
+					op.GeoM.Translate(1, 1)
+					slotImage.DrawImage(tileImage, &op)
 				}
 			}
 		}
 		drawOutline(slotImage, slotImage.Bounds(), c)
-		screen.DrawImage(slotImage, op)
+		op := ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(at.X*2)+1, float64(at.Y*2)+1)
+		screen.DrawImage(slotImage, &op)
 		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
-	op = &ebiten.DrawImageOptions{}
 	at = image.Pt(slotOrigin.X, slotOrigin.Y)
 	for i := range m.PosSlots {
 		top := &text.DrawOptions{}
