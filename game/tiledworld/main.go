@@ -10,7 +10,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"runtime/debug"
 	"strconv"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -45,12 +44,6 @@ func init() {
 
 type Point3 struct {
 	X, Y, Z int
-}
-
-func what(vs ...any) {
-	e, _ := os.Create("what")
-	e.WriteString(fmt.Sprintf("%v", vs))
-	e.Close()
 }
 
 type SaveData struct {
@@ -432,8 +425,7 @@ func (m *NormalMode) Update() error {
 			screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
 			f, err := os.Create("screenshot.png")
 			if err != nil {
-				what(err)
-				panic(err)
+				log.Fatalf("create screenshot file: %v", err)
 			}
 			for p, t := range m.Layer().Map {
 				tmin := p.Mul(tileSize)
@@ -442,8 +434,7 @@ func (m *NormalMode) Update() error {
 			}
 			err = png.Encode(f, screenshot)
 			if err != nil {
-				what(err)
-				panic(err)
+				log.Fatalf("png encode: %v", err)
 			}
 			continue
 		}
@@ -975,19 +966,6 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	defer func() {
-		r := recover()
-		if r != nil {
-			f, err := os.Create("err")
-			if err != nil {
-				// nothing I can do
-				return
-			}
-			defer f.Close()
-			f.WriteString(fmt.Sprintf("%s\n", debug.Stack()))
-			f.WriteString(fmt.Sprintf("%v", r))
-		}
-	}()
 	screen.Clear()
 	for _, ud := range g.SubUpdateDrawers() {
 		ud.Draw(screen)
@@ -1038,10 +1016,7 @@ func (g *Game) save() {
 			WorldData: g.NormalMode.World.ToData(),
 		}
 		if err := enc.Encode(data); err != nil {
-			// couldn't print in wsl with GOOS=windows
-			e, _ := os.Create("err")
-			e.WriteString(err.Error())
-			e.Close()
+			log.Fatalf("save data: %v", err)
 		}
 		f.Close()
 	}
@@ -1060,11 +1035,7 @@ func main() {
 		dec := gob.NewDecoder(f)
 		err = dec.Decode(saved)
 		if err != nil {
-			// couldn't print in wsl with GOOS=windows
-			e, _ := os.Create("err")
-			defer e.Close()
-			e.WriteString(err.Error())
-			return
+			log.Fatalf("load data: %v", err)
 		}
 		world.FromData(saved.WorldData)
 	}
