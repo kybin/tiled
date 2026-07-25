@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/gob"
 	"fmt"
 	"image"
@@ -14,7 +13,6 @@ import (
 	"runtime/debug"
 	"strconv"
 
-	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -34,7 +32,11 @@ var (
 )
 
 func init() {
-	s, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
+	f, err := os.Open("PixelOperator.ttf")
+	if err != nil {
+		log.Fatal(err)
+	}
+	s, err := text.NewGoTextFaceSource(f)
 	if err != nil {
 		log.Fatal(err)
 	}
