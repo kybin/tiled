@@ -51,8 +51,8 @@ type SaveData struct {
 }
 
 type WorldData struct {
-	Map     map[Point3]int
-	GetTile map[int]*Tile
+	Map       map[Point3]int
+	TileImage map[int]*image.RGBA
 }
 
 type World struct {
@@ -89,8 +89,8 @@ func (w *World) RemoveLayer(i int) error {
 
 func (w *World) ToData() *WorldData {
 	d := &WorldData{
-		Map:     make(map[Point3]int),
-		GetTile: make(map[int]*Tile),
+		Map:       make(map[Point3]int),
+		TileImage: make(map[int]*image.RGBA),
 	}
 	tileID := make(map[*Tile]int)
 	for i, l := range w.Layers {
@@ -103,7 +103,9 @@ func (w *World) ToData() *WorldData {
 				// unknown tile
 				id = len(tileID) + 1
 				tileID[tile] = id
-				d.GetTile[id] = tile
+				img := image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
+				tile.Image.ReadPixels(img.Pix)
+				d.TileImage[id] = img
 			}
 			p3 := Point3{X: p.X, Y: p.Y, Z: i}
 			d.Map[p3] = id
@@ -113,11 +115,19 @@ func (w *World) ToData() *WorldData {
 }
 
 func (w *World) FromData(d *WorldData) {
+	getTile := make(map[int]*Tile)
 	for p3, id := range d.Map {
 		for len(w.Layers)-1 < p3.Z {
 			w.Layers = append(w.Layers, NewLayer())
 		}
-		t := d.GetTile[id]
+		t := getTile[id]
+		if t == nil {
+			img := d.TileImage[id]
+			t = &Tile{}
+			t.Image = ebiten.NewImage(tileSize, tileSize)
+			t.Image.WritePixels(img.Pix)
+			getTile[id] = t
+		}
 		p := image.Point{p3.X, p3.Y}
 		w.Layers[p3.Z].Map[p] = t
 	}
@@ -136,7 +146,7 @@ func NewLayer() *Layer {
 func (l *Layer) NewTile(p image.Point) *Tile {
 	l.ClearTile(p)
 	tile := &Tile{}
-	tile.Image = image.NewRGBA(image.Rect(0, 0, tileSize, tileSize))
+	tile.Image = ebiten.NewImage(tileSize, tileSize)
 	l.Map[p] = tile
 	return tile
 }
@@ -187,7 +197,7 @@ func (l *Layer) TilePoses(tile *Tile) []image.Point {
 }
 
 type Tile struct {
-	Image *image.RGBA
+	Image *ebiten.Image
 }
 
 func keyDirection(k ebiten.Key) image.Point {
@@ -469,17 +479,15 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	slotImage := ebiten.NewImage((tileSize*2)+2, (tileSize*2)+2)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	at := image.Pt(slotOrigin.X, slotOrigin.Y)
-	tileImage := ebiten.NewImage(tileSize, tileSize)
 	for _, pos := range m.PosSlots {
 		slotImage.Clear()
 		if pos != nil {
 			for _, t := range m.TilesAt(*pos) {
 				if t != nil {
-					tileImage.WritePixels(t.Image.Pix)
 					op := ebiten.DrawImageOptions{}
 					op.GeoM.Scale(2, 2)
 					op.GeoM.Translate(1, 1)
-					slotImage.DrawImage(tileImage, &op)
+					slotImage.DrawImage(t.Image, &op)
 				}
 			}
 		}
@@ -588,7 +596,6 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 	halfScreen := ebiten.NewImage(sx/2, sy/2)
 	camRect := v.Camera.Rect()
 	camSize := v.Camera.Size
-	tileImage := ebiten.NewImage(tileSize, tileSize)
 	var layers []*Layer
 	if m.ExclusiveMode {
 		layers = []*Layer{m.Layer()}
@@ -599,14 +606,12 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 		for j := int(camRect.Min.Y) - 1; j < int(camRect.Max.Y)+1; j++ {
 			for i := int(camRect.Min.X) - 1; i < int(camRect.Max.X)+1; i++ {
 				tile, ok := l.Map[image.Pt(i, j)]
-				if ok {
-					tileImage.WritePixels(tile.Image.Pix)
-				} else {
-					tileImage.Clear()
+				if !ok {
+					continue
 				}
 				op := &ebiten.DrawImageOptions{}
 				op.GeoM.Translate((float64(i)-float64(camRect.Min.X))*tileSize, (float64(j)-float64(camRect.Min.Y))*tileSize)
-				halfScreen.DrawImage(tileImage, op)
+				halfScreen.DrawImage(tile.Image, op)
 			}
 		}
 	}
@@ -875,15 +880,13 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	zoomedTileSize := zoomScale * tileSize
 	center := image.Pt(layoutWidth/2+1, layoutHeight/2+1)
 	origin := image.Pt(center.X-zoomedTileSize/2, center.Y-zoomedTileSize/2)
-	tileImage := ebiten.NewImage(tileSize, tileSize)
 	tile := m.NormalMode.ActionTile()
 	if tile != nil {
-		tileImage.WritePixels(tile.Image.Pix)
+		op = &ebiten.DrawImageOptions{}
+		op.GeoM.Scale(zoomScale, zoomScale)
+		op.GeoM.Translate(float64(origin.X), float64(origin.Y))
+		screen.DrawImage(tile.Image, op)
 	}
-	op = &ebiten.DrawImageOptions{}
-	op.GeoM.Scale(zoomScale, zoomScale)
-	op.GeoM.Translate(float64(origin.X), float64(origin.Y))
-	screen.DrawImage(tileImage, op)
 	// draw cursor
 	cursorImage := ebiten.NewImage(zoomScale, zoomScale)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
@@ -921,6 +924,21 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
+	if g.NormalMode.World == nil {
+		g.NormalMode.World = NewWorld()
+		gob.Register(SaveData{})
+		saved := &SaveData{}
+		f, err := os.Open("save")
+		if err == nil {
+			defer f.Close()
+			dec := gob.NewDecoder(f)
+			err = dec.Decode(saved)
+			if err != nil {
+				log.Fatalf("load data: %v", err)
+			}
+			g.NormalMode.World.FromData(saved.WorldData)
+		}
+	}
 	keys := inpututil.AppendPressedKeys(nil)
 	ctrl := false
 	for _, k := range keys {
@@ -1009,7 +1027,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func (g *Game) save() {
-	f, err := os.Create(g.SaveFile)
+	f, err := os.Create("save")
 	if err == nil {
 		enc := gob.NewEncoder(f)
 		data := &SaveData{
@@ -1025,24 +1043,9 @@ func (g *Game) save() {
 func main() {
 	// get World from save data if exists
 	windowBounds := image.Rect(0, 0, 640, 480)
-	saveFile := "save"
-	world := NewWorld()
-	gob.Register(SaveData{})
-	saved := &SaveData{}
-	f, err := os.Open(saveFile)
-	if err == nil {
-		defer f.Close()
-		dec := gob.NewDecoder(f)
-		err = dec.Decode(saved)
-		if err != nil {
-			log.Fatalf("load data: %v", err)
-		}
-		world.FromData(saved.WorldData)
-	}
 	dirty := false
 	normalMode := &NormalMode{
 		bounds: windowBounds,
-		World:  world,
 		Dirty:  &dirty,
 	}
 	camBound := rect(0, 0, 12, 8)
@@ -1063,8 +1066,7 @@ func main() {
 			Lightness:  128,
 			Dirty:      &dirty,
 		},
-		Dirty:    &dirty,
-		SaveFile: saveFile,
+		Dirty: &dirty,
 	}
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
