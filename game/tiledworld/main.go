@@ -243,18 +243,6 @@ func (m *Mover) VisualPos() point {
 	}
 }
 
-type UpdateDrawer interface {
-	Update() error
-	Draw(*ebiten.Image)
-	// SetBounds let parent UpdateDrawer set bounds of this UpdateDrawer.
-	// SetBounds should be called in Update.
-	SetBounds(image.Rectangle)
-	// Bounds let parent UpdateDrawer know bounds of this UpdateDrawer,
-	// So the parent can pass that portion of *ebiten.Image inside of Draw.
-	Bounds() image.Rectangle
-	SubUpdateDrawers() []UpdateDrawer
-}
-
 type NormalMode struct {
 	Mover
 	bounds        image.Rectangle
@@ -347,7 +335,8 @@ func (m *NormalMode) MakeTileUnique() {
 	}
 }
 
-func (m *NormalMode) Update() error {
+func normalModeUpdate(g *Game, bounds image.Rectangle) error {
+	m := g.NormalMode
 	keys := inpututil.AppendPressedKeys(nil)
 	alt := false
 	for _, k := range keys {
@@ -456,20 +445,11 @@ func (m *NormalMode) Update() error {
 		}
 	}
 	m.MoveTo(dest)
-	for _, ud := range m.SubUpdateDrawers() {
-		err := ud.Update()
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
-func (m *NormalMode) Draw(screen *ebiten.Image) {
-	for _, ud := range m.SubUpdateDrawers() {
-		subScreen := screen.SubImage(ud.Bounds()).(*ebiten.Image)
-		ud.Draw(subScreen)
-	}
+func normalModeDraw(g *Game, screen *ebiten.Image) {
+	m := g.NormalMode
 	// draw slots at lower center
 	slotPad := 10
 	slotWidth := (tileSize+2)*len(m.PosSlots) + slotPad*len(m.PosSlots) // +2 for outline
@@ -513,14 +493,19 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 		)
 		at = at.Add(image.Pt(tileSize+2+slotPad, 0))
 	}
+
+}
+
+func normalModeAnalyzerDraw(g *Game, screen *ebiten.Image) {
+	m := g.NormalMode
 	top := &text.DrawOptions{
 		LayoutOptions: text.LayoutOptions{
 			PrimaryAlign: text.AlignEnd,
 		},
 	}
-	width, _ := screen.Size()
+	tr := image.Pt(screen.Bounds().Max.X, screen.Bounds().Min.Y)
 	top.ColorM.Scale(1, 1, 1, 0.5)
-	top.GeoM.Translate(float64(width)-10, 10)
+	top.GeoM.Translate(float64(tr.X), float64(tr.Y))
 	text.Draw(
 		screen,
 		fmt.Sprintf("Exclusive View (E): %v", m.ExclusiveMode),
@@ -552,44 +537,37 @@ func (m *NormalMode) Draw(screen *ebiten.Image) {
 	)
 }
 
-func (m *NormalMode) SubUpdateDrawers() []UpdateDrawer {
-	return []UpdateDrawer{m.WorldView}
-}
-
 // WorldView implements UpdateDrawer
 type WorldView struct {
-	normalMode *NormalMode
-	bounds     image.Rectangle
-	Camera     *Camera
-	cursorPos  *image.Point
+	Camera    *Camera
+	cursorPos *image.Point
 }
 
-func (v *WorldView) Update() error {
+func worldViewUpdate(g *Game, bounds image.Rectangle) error {
+	v := g.NormalMode.WorldView
 	// Points in World actually have size 1x1.
 	// Which the point represents top-left corner.
 	// Follow bottom-right corner as well.
-	v.Camera.Follow(v.normalMode.VisualPos())
-	v.Camera.Follow(v.normalMode.VisualPos().Add(pt(1, 1)))
+	v.Camera.Follow(g.NormalMode.VisualPos())
+	v.Camera.Follow(g.NormalMode.VisualPos().Add(pt(1, 1)))
 	cx, cy := ebiten.CursorPosition()
-	if !image.Pt(cx, cy).In(v.bounds) {
+	if !image.Pt(cx, cy).In(bounds) {
 		v.cursorPos = nil
 	} else {
-		relP := image.Pt(cx, cy).Sub(v.bounds.Min)
+		relP := image.Pt(cx, cy).Sub(bounds.Min)
 		rx := relP.X / tileSize / 2
 		ry := relP.Y / tileSize / 2
 		v.cursorPos = &image.Point{X: int(rx) + int(math.Round(v.Camera.Origin.X)), Y: int(ry) + int(math.Round(v.Camera.Origin.Y))}
 	}
 	if v.cursorPos != nil && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		v.normalMode.MoveTo(*v.cursorPos)
+		g.NormalMode.MoveTo(*v.cursorPos)
 	}
 	return nil
 }
 
-func (v *WorldView) Draw(screen *ebiten.Image) {
-	m := v.normalMode
-	if m == nil {
-		return
-	}
+func worldViewDraw(g *Game, screen *ebiten.Image) {
+	v := g.NormalMode.WorldView
+	m := g.NormalMode
 	sx, sy := screen.Size()
 	// Half sized screen that originated at (0, 0).
 	// It will be drawn at `screen` as double size.
@@ -668,34 +646,13 @@ func (v *WorldView) Draw(screen *ebiten.Image) {
 	screen.DrawImage(halfScreen, op)
 }
 
-func (v *WorldView) SetBounds(b image.Rectangle) {
-	v.bounds = b
-}
-
-func (v *WorldView) Bounds() image.Rectangle {
-	return v.bounds
-}
-
-func (v *WorldView) SubUpdateDrawers() []UpdateDrawer {
-	return nil
-}
-
 type ZoomMode struct {
-	bounds     image.Rectangle
 	Dirty      *bool
 	NormalMode *NormalMode
 	Mover
 	Hue        int
 	Saturation int
 	Lightness  int
-}
-
-func (m *ZoomMode) SetBounds(b image.Rectangle) {
-	m.bounds = b
-}
-
-func (m *ZoomMode) Bounds() image.Rectangle {
-	return m.bounds
 }
 
 func (m *ZoomMode) MoveTo(dest image.Point) {
@@ -737,7 +694,8 @@ func (m *ZoomMode) MoveTo(dest image.Point) {
 	m.Pos = p
 }
 
-func (m *ZoomMode) Update() error {
+func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
+	m := g.ZoomMode
 	keys := inpututil.AppendPressedKeys(nil)
 	alt := false
 	shift := false
@@ -772,7 +730,7 @@ func (m *ZoomMode) Update() error {
 			}
 		}
 	} else if shift {
-		tile := m.NormalMode.ActionTile()
+		tile := g.NormalMode.ActionTile()
 		if tile != nil {
 			for _, k := range keys {
 				if k == ebiten.KeyArrowLeft {
@@ -810,7 +768,7 @@ func (m *ZoomMode) Update() error {
 				}
 			}
 			if k == ebiten.KeyX {
-				tile := m.NormalMode.ActionTile()
+				tile := g.NormalMode.ActionTile()
 				if tile != nil {
 					p := m.Pos
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
@@ -818,9 +776,9 @@ func (m *ZoomMode) Update() error {
 				*m.Dirty = true
 			}
 			if k == ebiten.KeyC {
-				tile := m.NormalMode.ActionTile()
+				tile := g.NormalMode.ActionTile()
 				if tile == nil {
-					tile = m.NormalMode.NewTile()
+					tile = g.NormalMode.NewTile()
 				}
 				p := m.Pos
 				c, _ := tile.Image.At(p.X, p.Y).(color.RGBA)
@@ -833,9 +791,9 @@ func (m *ZoomMode) Update() error {
 			}
 			if k == ebiten.KeyV {
 				*m.Dirty = true
-				tile := m.NormalMode.ActionTile()
+				tile := g.NormalMode.ActionTile()
 				if tile == nil {
-					tile = m.NormalMode.NewTile()
+					tile = g.NormalMode.NewTile()
 				}
 				p := m.Pos
 				c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
@@ -847,7 +805,8 @@ func (m *ZoomMode) Update() error {
 	return nil
 }
 
-func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
+func zoomModeDraw(g *Game, fullscreen *ebiten.Image) {
+	m := g.ZoomMode
 	screen := ebiten.NewImage(layoutWidth, layoutHeight)
 	colorPickerSize := 32
 	colorPalette := ebiten.NewImage(colorPickerSize, colorPickerSize)
@@ -880,7 +839,7 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	zoomedTileSize := zoomScale * tileSize
 	center := image.Pt(layoutWidth/2+1, layoutHeight/2+1)
 	origin := image.Pt(center.X-zoomedTileSize/2, center.Y-zoomedTileSize/2)
-	tile := m.NormalMode.ActionTile()
+	tile := g.NormalMode.ActionTile()
 	if tile != nil {
 		op = &ebiten.DrawImageOptions{}
 		op.GeoM.Scale(zoomScale, zoomScale)
@@ -909,21 +868,47 @@ func (m *ZoomMode) Draw(fullscreen *ebiten.Image) {
 	fullscreen.DrawImage(screen, op)
 }
 
-func (m *ZoomMode) SubUpdateDrawers() []UpdateDrawer {
-	return nil
-}
-
 type Game struct {
-	Mode                         UpdateDrawer
+	Mode                         any
 	NormalMode                   *NormalMode
 	ZoomMode                     *ZoomMode
 	SaveFile                     string
 	Dirty                        *bool
 	askingQuitWithUnsavedChanges bool
-	bounds                       image.Rectangle
+	Bounds                       image.Rectangle
+	Widget                       *Widget
+	screen                       *ebiten.Image
 }
 
 func (g *Game) Update() error {
+	return g.Widget.UpdateRecursive(g, g.Bounds)
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Clear()
+	g.screen = screen
+	g.Widget.DrawRecursive(g, screen)
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	return outsideWidth, outsideHeight
+}
+
+func (g *Game) save() {
+	f, err := os.Create("save")
+	if err == nil {
+		enc := gob.NewEncoder(f)
+		data := &SaveData{
+			WorldData: g.NormalMode.World.ToData(),
+		}
+		if err := enc.Encode(data); err != nil {
+			log.Fatalf("save data: %v", err)
+		}
+		f.Close()
+	}
+}
+
+func gameUpdate(g *Game, bounds image.Rectangle) error {
 	if g.NormalMode.World == nil {
 		g.NormalMode.World = NewWorld()
 		gob.Register(SaveData{})
@@ -974,20 +959,10 @@ func (g *Game) Update() error {
 			g.Mode = g.NormalMode
 		}
 	}
-	for _, ud := range g.SubUpdateDrawers() {
-		err := ud.Update()
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Clear()
-	for _, ud := range g.SubUpdateDrawers() {
-		ud.Draw(screen)
-	}
+func gameDraw(g *Game, screen *ebiten.Image) {
 	_, height := screen.Size()
 	if g.askingQuitWithUnsavedChanges {
 		top := &text.DrawOptions{
@@ -1009,64 +984,63 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) SubUpdateDrawers() []UpdateDrawer {
-	// Only a Mode in the game is active.
-	return []UpdateDrawer{g.Mode}
-}
-
-func (g *Game) SetBounds(b image.Rectangle) {
-	g.bounds = b
-}
-
-func (g *Game) Bounds() image.Rectangle {
-	return g.bounds
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return outsideWidth, outsideHeight
-}
-
-func (g *Game) save() {
-	f, err := os.Create("save")
-	if err == nil {
-		enc := gob.NewEncoder(f)
-		data := &SaveData{
-			WorldData: g.NormalMode.World.ToData(),
-		}
-		if err := enc.Encode(data); err != nil {
-			log.Fatalf("save data: %v", err)
-		}
-		f.Close()
-	}
-}
-
 func main() {
 	// get World from save data if exists
-	windowBounds := image.Rect(0, 0, 640, 480)
 	dirty := false
 	normalMode := &NormalMode{
-		bounds: windowBounds,
-		Dirty:  &dirty,
+		Dirty: &dirty,
 	}
 	camBound := rect(0, 0, 12, 8)
 	normalMode.WorldView = &WorldView{
-		bounds:     camBound.Scale(2 * tileSize).Add(pt(10, 10)).ImageRectangle(),
-		normalMode: normalMode,
-		Camera:     NewCamera(camBound.Min, camBound.Max),
+		Camera: NewCamera(camBound.Min, camBound.Max),
 	}
 	normalMode.WorldView.Camera.FollowMargin = 2
 	game := &Game{
-		bounds:     windowBounds,
+		Bounds:     image.Rect(0, 0, 640, 480),
 		Mode:       normalMode,
 		NormalMode: normalMode,
 		ZoomMode: &ZoomMode{
-			bounds:     windowBounds,
 			NormalMode: normalMode,
 			Saturation: 255,
 			Lightness:  128,
 			Dirty:      &dirty,
 		},
 		Dirty: &dirty,
+	}
+	game.Widget = &Widget{
+		Update: gameUpdate,
+		Draw:   gameDraw,
+		Children: []*Widget{
+			&Widget{
+				Block: func(g *Game) bool {
+					return g.Mode != g.NormalMode
+				},
+				Update: normalModeUpdate,
+				Draw:   normalModeDraw,
+				Children: []*Widget{
+					&Widget{
+						Update: worldViewUpdate,
+						Draw:   worldViewDraw,
+						Pin:    WidgetPinTopLeft,
+						Offset: image.Pt(10, 10),
+						Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
+					},
+					&Widget{
+						Draw:   normalModeAnalyzerDraw,
+						Pin:    WidgetPinTopRight,
+						Offset: image.Pt(-10, 10),
+						Size:   image.Pt(200, 200),
+					},
+				},
+			},
+			&Widget{
+				Block: func(g *Game) bool {
+					return g.Mode != g.ZoomMode
+				},
+				Update: zoomModeUpdate,
+				Draw:   zoomModeDraw,
+			},
+		},
 	}
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
