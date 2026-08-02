@@ -4,9 +4,9 @@ type Camera struct {
 	Origin       point // top-left corner position
 	Size         point
 	FollowMargin float64
-	// Bounds defines boundary that camera can navigate around.
+	// Limits defines boundary that camera can navigate around.
 	// eg. world bounds
-	Bounds *rectangle
+	Limits *rectangle
 }
 
 func NewCamera(origin, size point) *Camera {
@@ -51,7 +51,7 @@ func (c *Camera) Follow(p point) {
 	c.Origin = c.Origin.Add(tr)
 	// but don't go outside of camera bounds
 	r := c.Rect()
-	b := c.Bounds
+	b := c.Limits
 	if b == nil {
 		return
 	}
