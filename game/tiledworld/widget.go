@@ -46,19 +46,21 @@ func (w *Widget) UpdateRecursive(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func (w *Widget) DrawRecursive(g *Game, canvas *ebiten.Image) {
+func (w *Widget) DrawRecursive(g *Game, bounds image.Rectangle) {
 	if w.Block != nil && w.Block(g) {
 		// don't evaluate the branch
 		return
 	}
-	bounds := canvas.Bounds()
 	bounds = calcBounds(bounds, w.Pin, w.Offset, w.Size)
-	canvas = canvas.SubImage(bounds).(*ebiten.Image)
+	canvas := ebiten.NewImage(bounds.Size().X, bounds.Size().Y)
 	if w.Draw != nil {
 		w.Draw(g, canvas)
+		op := ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
+		g.screen.DrawImage(canvas, &op)
 	}
 	for _, c := range w.Children {
-		c.DrawRecursive(g, canvas)
+		c.DrawRecursive(g, bounds)
 	}
 }
 
