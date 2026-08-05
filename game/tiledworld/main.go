@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -496,6 +497,7 @@ func normalModeAnalyzerDraw(g *Game, canvas *ebiten.Image) {
 	m := g.NormalMode
 	top := text.DrawOptions{
 		LayoutOptions: text.LayoutOptions{
+			LineSpacing:  20,
 			PrimaryAlign: text.AlignEnd,
 		},
 	}
@@ -504,27 +506,11 @@ func normalModeAnalyzerDraw(g *Game, canvas *ebiten.Image) {
 	top.GeoM.Translate(float64(tr.X), float64(tr.Y))
 	text.Draw(
 		canvas,
-		fmt.Sprintf("Exclusive View (E): %v", m.ExclusiveMode),
-		&text.GoTextFace{
-			Source: faceSource,
-			Size:   16,
-		},
-		&top,
-	)
-	top.GeoM.Translate(0, 20)
-	text.Draw(
-		canvas,
-		fmt.Sprintf("Current Layer: %v", m.CurLayer),
-		&text.GoTextFace{
-			Source: faceSource,
-			Size:   16,
-		},
-		&top,
-	)
-	top.GeoM.Translate(0, 20)
-	text.Draw(
-		canvas,
-		fmt.Sprintf("Position: (%v, %v)", m.Pos.X, m.Pos.Y),
+		strings.Join([]string{
+			fmt.Sprintf("Exclusive View (E): %v", m.ExclusiveMode),
+			fmt.Sprintf("Current Layer: %v", m.CurLayer),
+			fmt.Sprintf("Position: (%v, %v)", m.Pos.X, m.Pos.Y),
+		}, "\n"),
 		&text.GoTextFace{
 			Source: faceSource,
 			Size:   16,
