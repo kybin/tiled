@@ -447,19 +447,19 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func normalModeSlotDraw(g *Game, canvas *ebiten.Image) {
+func normalModeSlotsDraw(g *Game, canvas *ebiten.Image) {
 	m := g.NormalMode
 	// draw slots at lower center
 	slotPad := 20
 	slotSize := tileSize*2 + 2
-	slotWidth := slotSize*len(m.PosSlots) + slotPad*(len(m.PosSlots)-1) // +2 for outline
+	slotsWidth := slotSize*len(m.PosSlots) + slotPad*(len(m.PosSlots)-1) // +2 for outline
 	sz := canvas.Bounds().Size()
 	midX := sz.X/2 + 1
 	midY := sz.Y/2 + 1
-	slotOrigin := image.Pt(midX-slotWidth/2, midY-slotSize/2)
+	slotsOrigin := image.Pt(midX-slotsWidth/2, midY-slotSize/2)
 	slotImage := ebiten.NewImage(slotSize, slotSize)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	at := image.Pt(slotOrigin.X, slotOrigin.Y)
+	at := image.Pt(slotsOrigin.X, slotsOrigin.Y)
 	for i, pos := range m.PosSlots {
 		slotImage.Clear()
 		if pos != nil {
@@ -1012,7 +1012,7 @@ func main() {
 						Size:   image.Pt(200, 200),
 					},
 					&Widget{
-						Draw:   normalModeSlotDraw,
+						Draw:   normalModeSlotsDraw,
 						Pin:    WidgetPinBottom,
 						Offset: image.Pt(0, -10),
 						Size:   image.Pt(0, 100),
