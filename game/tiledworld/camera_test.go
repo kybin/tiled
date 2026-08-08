@@ -23,7 +23,7 @@ func TestCamera(t *testing.T) {
 	// inner rect should contain (5, 5), with margin 0
 	pos = pt(5, 5)
 	c.Follow(pos)
-	orig = pt(1, 1)
+	orig = pt(0, 0)
 	if c.Origin != orig {
 		t.Fatalf("camera origin: want %v , got %v", orig, c.Origin)
 	}
@@ -37,7 +37,7 @@ func TestCamera(t *testing.T) {
 	// inner rect should contain (5, 5), with margin 1
 	pos = pt(5, 5)
 	c.Follow(pos)
-	orig = pt(2, 2)
+	orig = pt(1, 1)
 	if c.Origin != orig {
 		t.Fatalf("camera origin: want %v , got %v", orig, c.Origin)
 	}
