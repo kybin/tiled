@@ -1023,43 +1023,48 @@ func main() {
 		Update: gameUpdate,
 		Children: []*Widget{
 			&Widget{
+				Pin:  WidgetPinTop,
+				Size: image.Pt(0, -32),
+				Children: []*Widget{
+					&Widget{
+						Block: func(g *Game) bool {
+							return g.Mode != g.NormalMode
+						},
+						Update: normalModeUpdate,
+						Children: []*Widget{
+							&Widget{
+								Update: worldViewUpdate,
+								Draw:   worldViewDraw,
+								Pin:    WidgetPinTopLeft,
+								Offset: image.Pt(10, 10),
+								Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
+							},
+							&Widget{
+								Draw:   normalModeAnalyzerDraw,
+								Pin:    WidgetPinTopRight,
+								Offset: image.Pt(-10, 10),
+								Size:   image.Pt(200, 200),
+							},
+							&Widget{
+								Draw:   normalModeSlotsDraw,
+								Pin:    WidgetPinBottom,
+								Offset: image.Pt(0, -10),
+								Size:   image.Pt(0, 100),
+							},
+						},
+					},
+					&Widget{
+						Block: func(g *Game) bool {
+							return g.Mode != g.ZoomMode
+						},
+						Update: zoomModeUpdate,
+						Draw:   zoomModeDraw,
+					},
+				},
+			}, &Widget{
 				Draw: gameNotifierDraw,
 				Pin:  WidgetPinBottom,
 				Size: image.Pt(0, 32),
-			},
-			&Widget{
-				Block: func(g *Game) bool {
-					return g.Mode != g.NormalMode
-				},
-				Update: normalModeUpdate,
-				Children: []*Widget{
-					&Widget{
-						Update: worldViewUpdate,
-						Draw:   worldViewDraw,
-						Pin:    WidgetPinTopLeft,
-						Offset: image.Pt(10, 10),
-						Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
-					},
-					&Widget{
-						Draw:   normalModeAnalyzerDraw,
-						Pin:    WidgetPinTopRight,
-						Offset: image.Pt(-10, 10),
-						Size:   image.Pt(200, 200),
-					},
-					&Widget{
-						Draw:   normalModeSlotsDraw,
-						Pin:    WidgetPinBottom,
-						Offset: image.Pt(0, -10),
-						Size:   image.Pt(0, 100),
-					},
-				},
-			},
-			&Widget{
-				Block: func(g *Game) bool {
-					return g.Mode != g.ZoomMode
-				},
-				Update: zoomModeUpdate,
-				Draw:   zoomModeDraw,
 			},
 		},
 	}
