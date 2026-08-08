@@ -59,11 +59,11 @@ func (w *Widget) DrawRecursive(g *Game, bounds image.Rectangle) {
 }
 
 func calcBounds(parentBounds image.Rectangle, pin WidgetPin, off, size image.Point) image.Rectangle {
-	if size.X == 0 {
-		size.X = parentBounds.Size().X
+	if size.X <= 0 {
+		size.X = max(parentBounds.Size().X+size.X, 0)
 	}
-	if size.Y == 0 {
-		size.Y = parentBounds.Size().Y
+	if size.Y <= 0 {
+		size.Y = max(parentBounds.Size().Y+size.Y, 0)
 	}
 	toEnd := image.Point{
 		(parentBounds.Size().X - size.X),
