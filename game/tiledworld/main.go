@@ -970,19 +970,20 @@ func gameUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func gameDraw(g *Game, bounds image.Rectangle) {
+func gameNotifierDraw(g *Game, bounds image.Rectangle) {
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	if g.askingQuitWithUnsavedChanges {
+		screen.Fill(color.RGBA{R: 32, G: 32, B: 32, A: 255})
 		top := text.DrawOptions{
 			LayoutOptions: text.LayoutOptions{
 				SecondaryAlign: text.AlignEnd,
 			},
 		}
-		top.GeoM.Translate(10, float64(bounds.Max.Y)-10)
+		top.GeoM.Translate(10, float64(bounds.Size().Y)-10)
 		top.GeoM.Concat(toScreen)
-		top.ColorM.Scale(1, 1, 1, 0.5)
+		top.ColorM.Scale(1, 1, 1, 1)
 		text.Draw(
 			screen,
 			fmt.Sprintf("Want to quit without save your changes? (y/n)"),
@@ -1020,8 +1021,12 @@ func main() {
 	}
 	game.Widget = &Widget{
 		Update: gameUpdate,
-		Draw:   gameDraw,
 		Children: []*Widget{
+			&Widget{
+				Draw: gameNotifierDraw,
+				Pin:  WidgetPinBottom,
+				Size: image.Pt(0, 32),
+			},
 			&Widget{
 				Block: func(g *Game) bool {
 					return g.Mode != g.NormalMode
