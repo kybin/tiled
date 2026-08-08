@@ -447,13 +447,16 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func normalModeSlotsDraw(g *Game, canvas *ebiten.Image) {
+func normalModeSlotsDraw(g *Game, bounds image.Rectangle) {
 	m := g.NormalMode
-	// draw slots at lower center
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
+
 	slotPad := 20
-	slotSize := tileSize*2 + 2
-	slotsWidth := slotSize*len(m.PosSlots) + slotPad*(len(m.PosSlots)-1) // +2 for outline
-	sz := canvas.Bounds().Size()
+	slotSize := tileSize*2 + 2 // +2 for outline
+	slotsWidth := slotSize*len(m.PosSlots) + slotPad*(len(m.PosSlots)-1)
+	sz := bounds.Size()
 	midX := sz.X/2 + 1
 	midY := sz.Y/2 + 1
 	slotsOrigin := image.Pt(midX-slotsWidth/2, midY-slotSize/2)
@@ -461,27 +464,33 @@ func normalModeSlotsDraw(g *Game, canvas *ebiten.Image) {
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
 	at := image.Pt(slotsOrigin.X, slotsOrigin.Y)
 	for i, pos := range m.PosSlots {
+		// draw slot image itself
 		slotImage.Clear()
 		if pos != nil {
 			for _, t := range m.TilesAt(*pos) {
 				if t != nil {
 					op := ebiten.DrawImageOptions{}
 					op.GeoM.Scale(2, 2)
-					op.GeoM.Translate(1, 1)
+					op.GeoM.Translate(1, 1) // for outline
 					slotImage.DrawImage(t.Image, &op)
 				}
 			}
 		}
 		drawOutline(slotImage, slotImage.Bounds(), c)
+
+		// draw slot image at an appropriate position
 		op := ebiten.DrawImageOptions{}
 		op.GeoM.Translate(float64(at.X)+1, float64(at.Y)+1)
-		canvas.DrawImage(slotImage, &op)
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(slotImage, &op)
+
 		// draw slot number
 		top := text.DrawOptions{}
 		top.GeoM.Translate(float64(at.X)+2, float64(at.Y)+1)
+		top.GeoM.Concat(toScreen)
 		top.ColorM.Scale(1, 1, 1, 0.5)
 		text.Draw(
-			canvas,
+			screen,
 			strconv.Itoa(i+1),
 			&text.GoTextFace{
 				Source: faceSource,
@@ -493,19 +502,22 @@ func normalModeSlotsDraw(g *Game, canvas *ebiten.Image) {
 	}
 }
 
-func normalModeAnalyzerDraw(g *Game, canvas *ebiten.Image) {
+func normalModeAnalyzerDraw(g *Game, bounds image.Rectangle) {
 	m := g.NormalMode
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	top := text.DrawOptions{
 		LayoutOptions: text.LayoutOptions{
 			LineSpacing:  20,
 			PrimaryAlign: text.AlignEnd,
 		},
 	}
-	tr := image.Pt(canvas.Bounds().Max.X, canvas.Bounds().Min.Y)
 	top.ColorM.Scale(1, 1, 1, 0.5)
-	top.GeoM.Translate(float64(tr.X), float64(tr.Y))
+	top.GeoM.Translate(float64(bounds.Size().X), 0) // to match text.AlignEnd
+	top.GeoM.Concat(toScreen)
 	text.Draw(
-		canvas,
+		screen,
 		strings.Join([]string{
 			fmt.Sprintf("Exclusive View (E): %v", m.ExclusiveMode),
 			fmt.Sprintf("Current Layer: %v", m.CurLayer),
@@ -547,13 +559,14 @@ func worldViewUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func worldViewDraw(g *Game, canvas *ebiten.Image) {
+func worldViewDraw(g *Game, bounds image.Rectangle) {
 	v := g.NormalMode.WorldView
 	m := g.NormalMode
-	sx, sy := canvas.Size()
-	halfCanvas := ebiten.NewImage(sx/2, sy/2)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Scale(2, 2)
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	camRect := v.Camera.Rect()
-	camSize := v.Camera.Size
 	var layers []*Layer
 	if m.ExclusiveMode {
 		layers = []*Layer{m.Layer()}
@@ -569,12 +582,13 @@ func worldViewDraw(g *Game, canvas *ebiten.Image) {
 				}
 				op := ebiten.DrawImageOptions{}
 				op.GeoM.Translate((float64(i)-float64(camRect.Min.X))*tileSize, (float64(j)-float64(camRect.Min.Y))*tileSize)
-				halfCanvas.DrawImage(tile.Image, &op)
+				op.GeoM.Concat(toScreen)
+				screen.DrawImage(tile.Image, &op)
 			}
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(halfCanvas, image.Rect(0, 0, int(camSize.X)*tileSize, int(camSize.Y)*tileSize), c)
+	drawOutline(screen, bounds, c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
@@ -583,7 +597,8 @@ func worldViewDraw(g *Game, canvas *ebiten.Image) {
 	op.Blend = ebiten.BlendSourceOver
 	vp := m.VisualPos()
 	op.GeoM.Translate(float64(vp.X-camRect.Min.X)*tileSize, float64(vp.Y-camRect.Min.Y)*tileSize)
-	halfCanvas.DrawImage(cursorImage, &op)
+	op.GeoM.Concat(toScreen)
+	screen.DrawImage(cursorImage, &op)
 	// draw hover cursor
 	if v.cursorPos != nil {
 		cursorImage := ebiten.NewImage(tileSize, tileSize)
@@ -594,17 +609,19 @@ func worldViewDraw(g *Game, canvas *ebiten.Image) {
 		// cursorPos is a relative position to camRect
 		p := v.cursorPos
 		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
-		halfCanvas.DrawImage(cursorImage, &op)
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(cursorImage, &op)
 	}
 	// draw copy cursor
 	if m.copyTilePos.In(camRect.ImageRectangle()) {
 		cursorImage.Clear()
 		c = color.RGBA{R: 64, G: 64, B: 192, A: 128}
 		drawOutline(cursorImage, cursorImage.Bounds(), c)
-		op = ebiten.DrawImageOptions{}
+		op := ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
 		op.GeoM.Translate((float64(m.copyTilePos.X)-float64(camRect.Min.X))*tileSize, (float64(m.copyTilePos.Y)-float64(camRect.Min.Y))*tileSize)
-		halfCanvas.DrawImage(cursorImage, &op)
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(cursorImage, &op)
 	}
 	// draw all matching cursor
 	cursorImage.Clear()
@@ -614,15 +631,12 @@ func worldViewDraw(g *Game, canvas *ebiten.Image) {
 		if !p.In(camRect.ImageRectangle()) {
 			continue
 		}
-		op = ebiten.DrawImageOptions{}
+		op := ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
 		op.GeoM.Translate((float64(p.X)-float64(camRect.Min.X))*tileSize, (float64(p.Y)-float64(camRect.Min.Y))*tileSize)
-		halfCanvas.DrawImage(cursorImage, &op)
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(cursorImage, &op)
 	}
-	// draw halfCanvas at canvas.
-	op = ebiten.DrawImageOptions{}
-	op.GeoM.Scale(2, 2)
-	canvas.DrawImage(halfCanvas, &op)
 }
 
 type ZoomMode struct {
@@ -784,10 +798,14 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func zoomModeDraw(g *Game, canvas *ebiten.Image) {
+func zoomModeDraw(g *Game, bounds image.Rectangle) {
 	m := g.ZoomMode
-	sx, sy := canvas.Size()
-	halfCanvas := ebiten.NewImage(sx/2, sy/2)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Scale(2, 2)
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
+
+	// draw colorpallete
 	colorPickerSize := 32
 	colorPalette := ebiten.NewImage(colorPickerSize, colorPickerSize)
 	for h := range colorPickerSize {
@@ -797,14 +815,22 @@ func zoomModeDraw(g *Game, canvas *ebiten.Image) {
 		}
 	}
 	op := ebiten.DrawImageOptions{}
-	halfCanvas.DrawImage(colorPalette, &op)
+	op.GeoM.Concat(toScreen)
+	screen.DrawImage(colorPalette, &op)
+
+	// draw focus on color palette
 	focus := ebiten.NewImage(5, 5)
 	focusPts := []image.Point{{2, 0}, {2, 1}, {2, 3}, {2, 4}, {0, 2}, {1, 2}, {3, 2}, {4, 2}}
 	for _, pt := range focusPts {
 		focus.Set(pt.X, pt.Y, color.RGBA{R: 255, G: 255, A: 255})
 	}
-	op.GeoM.Translate(float64(m.Hue)/8-2, float64(255-m.Lightness-1)/8-2)
-	halfCanvas.DrawImage(focus, &op)
+	op = ebiten.DrawImageOptions{}
+	op.GeoM.Translate(-2, -2) // focus to origin
+	op.GeoM.Translate(float64(m.Hue)/8, float64(255-m.Lightness-1)/8)
+	op.GeoM.Concat(toScreen)
+	screen.DrawImage(focus, &op)
+
+	// draw picked color
 	colorPicker := ebiten.NewImage(colorPickerSize, colorPickerSize)
 	c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
 	for h := 0; h < colorPickerSize; h += 1 {
@@ -814,18 +840,21 @@ func zoomModeDraw(g *Game, canvas *ebiten.Image) {
 	}
 	op = ebiten.DrawImageOptions{}
 	op.GeoM.Translate(0, 64)
-	halfCanvas.DrawImage(colorPicker, &op)
+	op.GeoM.Concat(toScreen)
+	screen.DrawImage(colorPicker, &op)
+
 	// draw zoomed tile
 	zoomedTileSize := zoomScale * tileSize
-	sx, sy = halfCanvas.Size()
-	center := image.Pt(sx/2+1, sy/2+1)
+	sz := bounds.Size().Div(2)
+	center := image.Pt(sz.X/2+1, sz.Y/2+1)
 	origin := image.Pt(center.X-zoomedTileSize/2, center.Y-zoomedTileSize/2)
 	tile := g.NormalMode.ActionTile()
 	if tile != nil {
 		op = ebiten.DrawImageOptions{}
 		op.GeoM.Scale(zoomScale, zoomScale)
 		op.GeoM.Translate(float64(origin.X), float64(origin.Y))
-		halfCanvas.DrawImage(tile.Image, &op)
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(tile.Image, &op)
 	}
 	// draw cursor
 	cursorImage := ebiten.NewImage(zoomScale, zoomScale)
@@ -837,16 +866,14 @@ func zoomModeDraw(g *Game, canvas *ebiten.Image) {
 	x := float64(m.OldPos.X) + float64(dir.X)*float64(m.steps)/maxSteps
 	y := float64(m.OldPos.Y) + float64(dir.Y)*float64(m.steps)/maxSteps
 	op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
-	halfCanvas.DrawImage(cursorImage, &op)
-	// draw outline
-	c = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	op.GeoM.Concat(toScreen)
+	screen.DrawImage(cursorImage, &op)
+
+	// draw outline of zoomed tile
 	b := image.Rectangle{}
-	b.Min = origin.Sub(image.Pt(1, 1))
-	b.Max = origin.Add(image.Pt(zoomedTileSize+1, zoomedTileSize+1))
-	drawOutline(halfCanvas, b, c)
-	op = ebiten.DrawImageOptions{}
-	op.GeoM.Scale(2, 2)
-	canvas.DrawImage(halfCanvas, &op)
+	b.Min = origin.Mul(2).Sub(image.Pt(1, 1))
+	b.Max = origin.Mul(2).Add(image.Pt(zoomedTileSize, zoomedTileSize).Mul(2).Add(image.Pt(1, 1)))
+	drawOutline(screen, b, color.White)
 }
 
 type Game struct {
@@ -943,18 +970,21 @@ func gameUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func gameDraw(g *Game, canvas *ebiten.Image) {
-	_, height := canvas.Size()
+func gameDraw(g *Game, bounds image.Rectangle) {
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	if g.askingQuitWithUnsavedChanges {
 		top := text.DrawOptions{
 			LayoutOptions: text.LayoutOptions{
 				SecondaryAlign: text.AlignEnd,
 			},
 		}
-		top.GeoM.Translate(10, float64(height)-10)
+		top.GeoM.Translate(10, float64(bounds.Max.Y)-10)
+		top.GeoM.Concat(toScreen)
 		top.ColorM.Scale(1, 1, 1, 0.5)
 		text.Draw(
-			canvas,
+			screen,
 			fmt.Sprintf("Want to quit without save your changes? (y/n)"),
 			&text.GoTextFace{
 				Source: faceSource,

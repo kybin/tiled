@@ -2,8 +2,6 @@ package main
 
 import (
 	"image"
-
-	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Widget struct {
@@ -20,7 +18,7 @@ type Widget struct {
 	// Draw is a given function to the Widget,
 	// so it can draw on the game screen.
 	// If Draw is nil, the Widget will not draw on the screen.
-	Draw func(g *Game, canvas *ebiten.Image)
+	Draw func(g *Game, bounds image.Rectangle)
 	// Children is child Widgets of this Widget.
 	Children []*Widget
 }
@@ -52,12 +50,8 @@ func (w *Widget) DrawRecursive(g *Game, bounds image.Rectangle) {
 		return
 	}
 	bounds = calcBounds(bounds, w.Pin, w.Offset, w.Size)
-	canvas := ebiten.NewImage(bounds.Size().X, bounds.Size().Y)
 	if w.Draw != nil {
-		w.Draw(g, canvas)
-		op := ebiten.DrawImageOptions{}
-		op.GeoM.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
-		g.screen.DrawImage(canvas, &op)
+		w.Draw(g, bounds)
 	}
 	for _, c := range w.Children {
 		c.DrawRecursive(g, bounds)
