@@ -798,7 +798,7 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func zoomModeDraw(g *Game, bounds image.Rectangle) {
+func zoomModePalleteDraw(g *Game, bounds image.Rectangle) {
 	m := g.ZoomMode
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
@@ -842,38 +842,40 @@ func zoomModeDraw(g *Game, bounds image.Rectangle) {
 	op.GeoM.Translate(0, 64)
 	op.GeoM.Concat(toScreen)
 	screen.DrawImage(colorPicker, &op)
+}
 
-	// draw zoomed tile
-	zoomedTileSize := zoomScale * tileSize
-	sz := bounds.Size().Div(2)
-	center := image.Pt(sz.X/2+1, sz.Y/2+1)
-	origin := image.Pt(center.X-zoomedTileSize/2, center.Y-zoomedTileSize/2)
+func zoomModeTileDraw(g *Game, bounds image.Rectangle) {
+	m := g.ZoomMode
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Scale(2, 2)
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
+	toScreen.Translate(1, 1) // shift for outline
+
+	// draw zoomed tile pixels
 	tile := g.NormalMode.ActionTile()
 	if tile != nil {
-		op = ebiten.DrawImageOptions{}
+		op := ebiten.DrawImageOptions{}
 		op.GeoM.Scale(zoomScale, zoomScale)
-		op.GeoM.Translate(float64(origin.X), float64(origin.Y))
 		op.GeoM.Concat(toScreen)
 		screen.DrawImage(tile.Image, &op)
 	}
+
 	// draw cursor
 	cursorImage := ebiten.NewImage(zoomScale, zoomScale)
-	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
+	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(cursorImage, cursorImage.Bounds(), c)
-	op = ebiten.DrawImageOptions{}
+	op := ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	dir := m.Pos.Sub(m.OldPos)
 	x := float64(m.OldPos.X) + float64(dir.X)*float64(m.steps)/maxSteps
 	y := float64(m.OldPos.Y) + float64(dir.Y)*float64(m.steps)/maxSteps
-	op.GeoM.Translate(float64(origin.X)+x*zoomScale, float64(origin.Y)+y*zoomScale)
+	op.GeoM.Translate(x*zoomScale, y*zoomScale)
 	op.GeoM.Concat(toScreen)
 	screen.DrawImage(cursorImage, &op)
 
 	// draw outline of zoomed tile
-	b := image.Rectangle{}
-	b.Min = origin.Mul(2).Sub(image.Pt(1, 1))
-	b.Max = origin.Mul(2).Add(image.Pt(zoomedTileSize, zoomedTileSize).Mul(2).Add(image.Pt(1, 1)))
-	drawOutline(screen, b, color.White)
+	drawOutline(screen, bounds, color.White)
 }
 
 type Game struct {
@@ -1058,7 +1060,17 @@ func main() {
 							return g.Mode != g.ZoomMode
 						},
 						Update: zoomModeUpdate,
-						Draw:   zoomModeDraw,
+						Children: []*Widget{
+							&Widget{
+								Draw: zoomModePalleteDraw,
+								Pin:  WidgetPinTopLeft,
+							},
+							&Widget{
+								Draw: zoomModeTileDraw,
+								Pin:  WidgetPinCenter,
+								Size: image.Pt(zoomScale*tileSize, zoomScale*tileSize).Mul(2).Add(image.Pt(2, 2)),
+							},
+						},
 					},
 				},
 			}, &Widget{
