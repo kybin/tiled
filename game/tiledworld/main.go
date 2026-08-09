@@ -357,6 +357,17 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 	}
 	dest := m.Pos
 	for _, k := range keys {
+		if m.steps == 0 {
+			d := keyDirection(k)
+			if d != image.Pt(0, 0) {
+				dest = dest.Add(d)
+			}
+		}
+	}
+	// move doesn't comsume update
+	m.MoveTo(dest)
+	// handle other operations
+	for _, k := range keys {
 		if k == ebiten.KeyMinus {
 			if !inpututil.IsKeyJustPressed(k) {
 				continue
@@ -364,7 +375,7 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 			if m.CurLayer != 0 {
 				m.CurLayer--
 			}
-			continue
+			return UpdateHandled
 		}
 		if k == ebiten.KeyEqual {
 			if !inpututil.IsKeyJustPressed(k) {
@@ -374,12 +385,13 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 				m.World.AddLayer()
 			}
 			m.CurLayer++
-			continue
+			return UpdateHandled
 		}
 		if k == ebiten.KeyE {
 			if inpututil.IsKeyJustPressed(ebiten.KeyE) {
 				m.ExclusiveMode = !m.ExclusiveMode
 			}
+			return UpdateHandled
 		}
 		for i, sk := range slotKeys {
 			if k != sk {
@@ -402,25 +414,25 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 					}
 				}
 			}
-			break
+			return UpdateHandled
 		}
 		if k == ebiten.KeyX {
 			m.ClearTile()
 			*m.Dirty = true
-			continue
+			return UpdateHandled
 		}
 		if k == ebiten.KeyC {
 			m.CopyPos()
-			continue
+			return UpdateHandled
 		}
 		if k == ebiten.KeyV {
 			m.PastePos()
 			*m.Dirty = true
-			continue
+			return UpdateHandled
 		}
 		if k == ebiten.KeyD {
 			m.MakeTileUnique()
-			continue
+			return UpdateHandled
 		}
 		if k == ebiten.KeyP {
 			r := m.WorldView.Camera.Rect()
@@ -438,16 +450,9 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 			if err != nil {
 				log.Fatalf("png encode: %v", err)
 			}
-			continue
-		}
-		if m.steps == 0 {
-			d := keyDirection(k)
-			if d != image.Pt(0, 0) {
-				dest = dest.Add(d)
-			}
+			return UpdateHandled
 		}
 	}
-	m.MoveTo(dest)
 	return nil
 }
 
@@ -559,6 +564,7 @@ func worldViewUpdate(g *Game, bounds image.Rectangle) error {
 	}
 	if v.cursorPos != nil && inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		g.NormalMode.MoveTo(*v.cursorPos)
+		return UpdateHandled
 	}
 	return nil
 }
@@ -773,6 +779,11 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 					dest = dest.Add(d)
 				}
 			}
+		}
+		// move doesn't consume update
+		m.MoveTo(dest)
+
+		for _, k := range keys {
 			if k == ebiten.KeyX {
 				tile := g.NormalMode.ActionTile()
 				if tile != nil {
@@ -780,6 +791,7 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 					tile.Image.Set(p.X, p.Y, color.RGBA{})
 				}
 				*m.Dirty = true
+				return UpdateHandled
 			}
 			if k == ebiten.KeyC {
 				tile := g.NormalMode.ActionTile()
@@ -794,6 +806,7 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 					m.Saturation = int(s * 255)
 					m.Lightness = int(l * 255)
 				}
+				return UpdateHandled
 			}
 			if k == ebiten.KeyV {
 				*m.Dirty = true
@@ -804,10 +817,10 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 				p := m.Pos
 				c := HSLToRGB(float64(m.Hue)/255, float64(m.Saturation)/255, float64(m.Lightness)/255)
 				tile.Image.Set(p.X, p.Y, c)
+				return UpdateHandled
 			}
 		}
 	}
-	m.MoveTo(dest)
 	return nil
 }
 
@@ -911,7 +924,7 @@ type Game struct {
 
 func (g *Game) Update() error {
 	err := g.Widget.UpdateRecursive(g, g.Bounds)
-	if err != nil {
+	if err != nil && err != UpdateHandled {
 		return err
 	}
 	g.Widget.TickRecursive(g, g.Bounds)
@@ -956,20 +969,21 @@ func gameUpdate(g *Game, bounds image.Rectangle) error {
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyN) {
 			g.askingQuitWithUnsavedChanges = false
-			return nil
+			return UpdateHandled
 		}
-		return nil
+		return UpdateHandled
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyQ) {
 		if *g.Dirty {
 			g.askingQuitWithUnsavedChanges = true
-			return nil
+			return UpdateHandled
 		}
 		return ebiten.Termination
 	}
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		g.save()
 		*g.Dirty = false
+		return UpdateHandled
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		if g.Mode == g.NormalMode {
@@ -977,6 +991,7 @@ func gameUpdate(g *Game, bounds image.Rectangle) error {
 		} else {
 			g.Mode = g.NormalMode
 		}
+		return UpdateHandled
 	}
 	return nil
 }

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"errors"
 	"image"
 )
+
+var UpdateHandled error = errors.New("update handled")
 
 type Widget struct {
 	Pin    WidgetPin
