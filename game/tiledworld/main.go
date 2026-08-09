@@ -220,12 +220,16 @@ type Mover struct {
 }
 
 func (m *Mover) MoveTo(p image.Point) {
-	if p == m.Pos && p == m.OldPos {
+	if m.steps != 0 {
 		return
 	}
-	if m.steps == 0 {
-		m.OldPos = m.Pos
-		m.Pos = p
+	m.OldPos = m.Pos
+	m.Pos = p
+}
+
+func (m *Mover) Step() {
+	if m.Pos == m.OldPos {
+		return
 	}
 	m.steps += 1
 	if m.steps >= maxSteps {
@@ -447,6 +451,11 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
+func normalModeTick(g *Game, bounds image.Rectangle) {
+	m := g.NormalMode
+	m.Step()
+}
+
 func normalModeSlotsDraw(g *Game, bounds image.Rectangle) {
 	m := g.NormalMode
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
@@ -539,11 +548,6 @@ type WorldView struct {
 
 func worldViewUpdate(g *Game, bounds image.Rectangle) error {
 	v := g.NormalMode.WorldView
-	// Points in World actually have size 1x1.
-	// Which the point represents top-left corner.
-	// Follow bottom-right corner as well.
-	v.Camera.Follow(g.NormalMode.VisualPos())
-	v.Camera.Follow(g.NormalMode.VisualPos().Add(pt(1, 1)))
 	cx, cy := ebiten.CursorPosition()
 	if !image.Pt(cx, cy).In(bounds) {
 		v.cursorPos = nil
@@ -557,6 +561,15 @@ func worldViewUpdate(g *Game, bounds image.Rectangle) error {
 		g.NormalMode.MoveTo(*v.cursorPos)
 	}
 	return nil
+}
+
+func worldViewTick(g *Game, bounds image.Rectangle) {
+	v := g.NormalMode.WorldView
+	// Points in World actually have size 1x1.
+	// Which the point represents top-left corner.
+	// Follow bottom-right corner as well.
+	v.Camera.Follow(g.NormalMode.VisualPos())
+	v.Camera.Follow(g.NormalMode.VisualPos().Add(pt(1, 1)))
 }
 
 func worldViewDraw(g *Game, bounds image.Rectangle) {
@@ -798,6 +811,11 @@ func zoomModeUpdate(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
+func zoomModeTick(g *Game, bounds image.Rectangle) {
+	m := g.ZoomMode
+	m.Step()
+}
+
 func zoomModePalleteDraw(g *Game, bounds image.Rectangle) {
 	m := g.ZoomMode
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
@@ -885,13 +903,19 @@ type Game struct {
 	SaveFile                     string
 	Dirty                        *bool
 	askingQuitWithUnsavedChanges bool
+	worldStopped                 bool
 	Bounds                       image.Rectangle
 	Widget                       *Widget
 	screen                       *ebiten.Image
 }
 
 func (g *Game) Update() error {
-	return g.Widget.UpdateRecursive(g, g.Bounds)
+	err := g.Widget.UpdateRecursive(g, g.Bounds)
+	if err != nil {
+		return err
+	}
+	g.Widget.TickRecursive(g, g.Bounds)
+	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -919,21 +943,6 @@ func (g *Game) save() {
 }
 
 func gameUpdate(g *Game, bounds image.Rectangle) error {
-	if g.NormalMode.World == nil {
-		g.NormalMode.World = NewWorld()
-		gob.Register(SaveData{})
-		saved := &SaveData{}
-		f, err := os.Open("save")
-		if err == nil {
-			defer f.Close()
-			dec := gob.NewDecoder(f)
-			err = dec.Decode(saved)
-			if err != nil {
-				log.Fatalf("load data: %v", err)
-			}
-			g.NormalMode.World.FromData(saved.WorldData)
-		}
-	}
 	keys := inpututil.AppendPressedKeys(nil)
 	ctrl := false
 	for _, k := range keys {
@@ -1021,6 +1030,19 @@ func main() {
 		},
 		Dirty: &dirty,
 	}
+	game.NormalMode.World = NewWorld()
+	gob.Register(SaveData{})
+	saved := &SaveData{}
+	f, err := os.Open("save")
+	if err == nil {
+		defer f.Close()
+		dec := gob.NewDecoder(f)
+		err = dec.Decode(saved)
+		if err != nil {
+			log.Fatalf("load data: %v", err)
+		}
+		game.NormalMode.World.FromData(saved.WorldData)
+	}
 	game.Widget = &Widget{
 		Update: gameUpdate,
 		Children: []*Widget{
@@ -1033,9 +1055,11 @@ func main() {
 							return g.Mode != g.NormalMode
 						},
 						Update: normalModeUpdate,
+						Tick:   normalModeTick,
 						Children: []*Widget{
 							&Widget{
 								Update: worldViewUpdate,
+								Tick:   worldViewTick,
 								Draw:   worldViewDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(10, 10),
@@ -1060,6 +1084,7 @@ func main() {
 							return g.Mode != g.ZoomMode
 						},
 						Update: zoomModeUpdate,
+						Tick:   zoomModeTick,
 						Children: []*Widget{
 							&Widget{
 								Draw: zoomModePalleteDraw,

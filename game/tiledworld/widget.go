@@ -11,6 +11,10 @@ type Widget struct {
 	// If Block returns true, the Widget and the chlidren should stop operate.
 	// If Block is nil, the Widget will always operate (if one of the ancestors didn't block).
 	Block func(g *Game) bool
+	// Tick updates the status without any input.
+	// It will be run even if the Widget has blocked.
+	// World stop can prevent it to be run.
+	Tick func(g *Game, bounds image.Rectangle)
 	// Update is a given function to the Widget,
 	// so it can handle inputs and update the game status.
 	// If Update is nil, the Widget will not update the game.
@@ -42,6 +46,18 @@ func (w *Widget) UpdateRecursive(g *Game, bounds image.Rectangle) error {
 		}
 	}
 	return nil
+}
+
+func (w *Widget) TickRecursive(g *Game, bounds image.Rectangle) {
+	if g.worldStopped {
+		return
+	}
+	if w.Tick != nil {
+		w.Tick(g, bounds)
+	}
+	for _, c := range w.Children {
+		c.TickRecursive(g, bounds)
+	}
 }
 
 func (w *Widget) DrawRecursive(g *Game, bounds image.Rectangle) {
