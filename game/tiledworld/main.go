@@ -459,6 +459,12 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 func normalModeTick(g *Game, bounds image.Rectangle) {
 	m := g.NormalMode
 	m.Step()
+	v := g.NormalMode.WorldView
+	// Points in World actually have size 1x1.
+	// Which the point represents top-left corner.
+	// Follow bottom-right corner as well.
+	v.Camera.Follow(g.NormalMode.VisualPos())
+	v.Camera.Follow(g.NormalMode.VisualPos().Add(pt(1, 1)))
 }
 
 func normalModeSlotsDraw(g *Game, bounds image.Rectangle) {
@@ -567,15 +573,6 @@ func worldViewUpdate(g *Game, bounds image.Rectangle) error {
 		return UpdateHandled
 	}
 	return nil
-}
-
-func worldViewTick(g *Game, bounds image.Rectangle) {
-	v := g.NormalMode.WorldView
-	// Points in World actually have size 1x1.
-	// Which the point represents top-left corner.
-	// Follow bottom-right corner as well.
-	v.Camera.Follow(g.NormalMode.VisualPos())
-	v.Camera.Follow(g.NormalMode.VisualPos().Add(pt(1, 1)))
 }
 
 func worldViewDraw(g *Game, bounds image.Rectangle) {
@@ -1074,7 +1071,6 @@ func main() {
 						Children: []*Widget{
 							&Widget{
 								Update: worldViewUpdate,
-								Tick:   worldViewTick,
 								Draw:   worldViewDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(10, 10),
