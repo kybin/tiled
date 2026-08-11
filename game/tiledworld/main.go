@@ -655,6 +655,31 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 	}
 }
 
+func activeTileLayersDraw(g *Game, bounds image.Rectangle) {
+	m := g.NormalMode
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Scale(2, 2)
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
+	for i, l := range m.World.Layers {
+		t := l.TileAt(m.Pos)
+		if t == nil {
+			continue
+		}
+		op := ebiten.DrawImageOptions{}
+		op.GeoM.Translate(0, float64((7-i)*tileSize))
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(t.Image, &op)
+	}
+	// draw cursor
+	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(bounds.Min.X, bounds.Min.Y))
+	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
+	drawOutline(screen, cursorBounds, c)
+	// draw outline
+	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	drawOutline(screen, bounds, c)
+}
+
 type ZoomMode struct {
 	Dirty      *bool
 	NormalMode *NormalMode
@@ -1075,6 +1100,12 @@ func main() {
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(10, 10),
 								Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
+							},
+							&Widget{
+								Draw:   activeTileLayersDraw,
+								Pin:    WidgetPinTopLeft,
+								Offset: image.Pt(12*tileSize, 0).Mul(2).Add(image.Pt(20, 10)),
+								Size:   image.Pt(tileSize, 8*tileSize).Mul(2),
 							},
 							&Widget{
 								Draw:   normalModeAnalyzerDraw,
