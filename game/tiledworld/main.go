@@ -578,6 +578,9 @@ func worldViewUpdate(g *Game, bounds image.Rectangle) error {
 func worldViewDraw(g *Game, bounds image.Rectangle) {
 	v := g.NormalMode.WorldView
 	m := g.NormalMode
+	outlineScreen := g.screen.SubImage(bounds.Inset(-2)).(*ebiten.Image)
+	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	drawOutline(outlineScreen, bounds.Inset(-2), 2, c)
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
@@ -603,8 +606,6 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 			}
 		}
 	}
-	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, bounds, 1, c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
@@ -657,6 +658,9 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 
 func activeTileLayersDraw(g *Game, bounds image.Rectangle) {
 	m := g.NormalMode
+	outlineScreen := g.screen.SubImage(bounds.Inset(-2)).(*ebiten.Image)
+	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	drawOutline(outlineScreen, bounds.Inset(-2), 2, c)
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
@@ -673,11 +677,8 @@ func activeTileLayersDraw(g *Game, bounds image.Rectangle) {
 	}
 	// draw cursor
 	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(bounds.Min.X, bounds.Min.Y))
-	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
+	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(screen, cursorBounds, 2, c)
-	// draw outline
-	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, bounds, 1, c)
 }
 
 type ZoomMode struct {
