@@ -496,7 +496,7 @@ func normalModeSlotsDraw(g *Game, bounds image.Rectangle) {
 				}
 			}
 		}
-		drawOutline(slotImage, slotImage.Bounds(), c)
+		drawOutline(slotImage, slotImage.Bounds(), 1, c)
 
 		// draw slot image at an appropriate position
 		op := ebiten.DrawImageOptions{}
@@ -604,11 +604,11 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 		}
 	}
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, bounds, c)
+	drawOutline(screen, bounds, 1, c)
 	// draw cursor
 	cursorImage := ebiten.NewImage(tileSize, tileSize)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
-	drawOutline(cursorImage, cursorImage.Bounds(), c)
+	drawOutline(cursorImage, cursorImage.Bounds(), 1, c)
 	op := ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	vp := m.VisualPos()
@@ -619,7 +619,7 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 	if v.cursorPos != nil {
 		cursorImage := ebiten.NewImage(tileSize, tileSize)
 		c = color.RGBA{R: 192, G: 192, B: 192, A: 32}
-		drawOutline(cursorImage, cursorImage.Bounds(), c)
+		drawOutline(cursorImage, cursorImage.Bounds(), 1, c)
 		op := ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
 		// cursorPos is a relative position to camRect
@@ -632,7 +632,7 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 	if m.copyTilePos.In(camRect.ImageRectangle()) {
 		cursorImage.Clear()
 		c = color.RGBA{R: 64, G: 64, B: 192, A: 128}
-		drawOutline(cursorImage, cursorImage.Bounds(), c)
+		drawOutline(cursorImage, cursorImage.Bounds(), 1, c)
 		op := ebiten.DrawImageOptions{}
 		op.Blend = ebiten.BlendSourceOver
 		op.GeoM.Translate((float64(m.copyTilePos.X)-float64(camRect.Min.X))*tileSize, (float64(m.copyTilePos.Y)-float64(camRect.Min.Y))*tileSize)
@@ -642,7 +642,7 @@ func worldViewDraw(g *Game, bounds image.Rectangle) {
 	// draw all matching cursor
 	cursorImage.Clear()
 	c = color.RGBA{R: 32, G: 32, B: 32, A: 32}
-	drawOutline(cursorImage, cursorImage.Bounds(), c)
+	drawOutline(cursorImage, cursorImage.Bounds(), 1, c)
 	for _, p := range m.Layer().TilePoses(m.ActionTile()) {
 		if !p.In(camRect.ImageRectangle()) {
 			continue
@@ -674,10 +674,10 @@ func activeTileLayersDraw(g *Game, bounds image.Rectangle) {
 	// draw cursor
 	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(bounds.Min.X, bounds.Min.Y))
 	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
-	drawOutline(screen, cursorBounds, c)
+	drawOutline(screen, cursorBounds, 2, c)
 	// draw outline
 	c = color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(screen, bounds, c)
+	drawOutline(screen, bounds, 1, c)
 }
 
 type ZoomMode struct {
@@ -917,7 +917,7 @@ func zoomModeTileDraw(g *Game, bounds image.Rectangle) {
 	// draw cursor
 	cursorImage := ebiten.NewImage(zoomScale, zoomScale)
 	c := color.RGBA{R: 192, G: 192, B: 64, A: 128}
-	drawOutline(cursorImage, cursorImage.Bounds(), c)
+	drawOutline(cursorImage, cursorImage.Bounds(), 1, c)
 	op := ebiten.DrawImageOptions{}
 	op.Blend = ebiten.BlendSourceOver
 	dir := m.Pos.Sub(m.OldPos)
@@ -928,7 +928,7 @@ func zoomModeTileDraw(g *Game, bounds image.Rectangle) {
 	screen.DrawImage(cursorImage, &op)
 
 	// draw outline of zoomed tile
-	drawOutline(screen, bounds, color.White)
+	drawOutline(screen, bounds, 1, color.White)
 }
 
 type Game struct {
