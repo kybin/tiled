@@ -30,7 +30,7 @@ var (
 )
 
 func init() {
-	f, err := os.Open("PixelOperator.ttf")
+	f, err := os.Open("data/font/PixelOperator.ttf")
 	if err != nil {
 		log.Fatal(err)
 	}
