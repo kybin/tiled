@@ -447,36 +447,51 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 				return fmt.Errorf("open screenshot directory: %v", err)
 			}
 			if ctrl {
-				r := m.WorldView.Camera.Rect()
-				screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
-				f, err := root.Create("camera.png")
+				err := func() error {
+					r := m.WorldView.Camera.Rect()
+					screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
+					f, err := root.Create("camera.png")
+					if err != nil {
+						return fmt.Errorf("create screenshot file: %v", err)
+					}
+					f.Close()
+					for p, t := range m.Layer().Map {
+						tmin := p.Mul(tileSize)
+						tmax := p.Add(image.Pt(1, 1)).Mul(tileSize)
+						draw.Draw(screenshot, image.Rect(tmin.X, tmin.Y, tmax.X, tmax.Y), t.Image, image.Pt(0, 0), draw.Src)
+					}
+					err = png.Encode(f, screenshot)
+					if err != nil {
+						return fmt.Errorf("png encode: %v", err)
+					}
+					return nil
+				}()
 				if err != nil {
-					return fmt.Errorf("create screenshot file: %v", err)
-				}
-				for p, t := range m.Layer().Map {
-					tmin := p.Mul(tileSize)
-					tmax := p.Add(image.Pt(1, 1)).Mul(tileSize)
-					draw.Draw(screenshot, image.Rect(tmin.X, tmin.Y, tmax.X, tmax.Y), t.Image, image.Pt(0, 0), draw.Src)
-				}
-				err = png.Encode(f, screenshot)
-				if err != nil {
-					return fmt.Errorf("png encode: %v", err)
+					return err
 				}
 				return UpdateHandled
 			}
-			f, err := root.Create("tile.png")
+			err = func() error {
+				f, err := root.Create("tile.png")
+				if err != nil {
+					return fmt.Errorf("create tile image: %v", err)
+				}
+				defer f.Close()
+				b := image.Rect(0, 0, tileSize, tileSize)
+				tileImg := image.NewRGBA(b)
+				for _, t := range m.TilesAt(m.Pos) {
+					if t != nil {
+						draw.Draw(tileImg, b, t.Image, image.Pt(0, 0), draw.Over)
+					}
+				}
+				err = png.Encode(f, tileImg)
+				if err != nil {
+					return fmt.Errorf("png encode: %v", err)
+				}
+				return nil
+			}()
 			if err != nil {
-				return fmt.Errorf("create tile image: %v", err)
-			}
-			t := m.ActionTile()
-			b := image.Rect(0, 0, tileSize, tileSize)
-			tileImg := image.NewRGBA(b)
-			if t != nil {
-				draw.Draw(tileImg, b, t.Image, image.Pt(0, 0), draw.Src)
-			}
-			err = png.Encode(f, tileImg)
-			if err != nil {
-				return fmt.Errorf("png encode: %v", err)
+				return err
 			}
 			return UpdateHandled
 		}
@@ -577,6 +592,27 @@ func normalModeAnalyzerDraw(g *Game, bounds image.Rectangle) {
 		},
 		&top,
 	)
+}
+
+type MenuBar struct {
+	Tiles []*Tile
+	Idx   int
+}
+
+func menuBarDraw(g *Game, bounds image.Rectangle) {
+	outlineScreen := g.screen.SubImage(bounds.Inset(-2)).(*ebiten.Image)
+	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	drawOutline(outlineScreen, bounds.Inset(-2), 2, c)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	toScreen := ebiten.GeoM{}
+	toScreen.Scale(2, 2)
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
+	for i, t := range g.MenuBar.Tiles {
+		op := ebiten.DrawImageOptions{}
+		op.GeoM.Translate(float64(i)*tileSize, 0)
+		op.GeoM.Concat(toScreen)
+		screen.DrawImage(t.Image, &op)
+	}
 }
 
 // WorldView implements UpdateDrawer
@@ -977,6 +1013,7 @@ func zoomModeTileDraw(g *Game, bounds image.Rectangle) {
 
 type Game struct {
 	Mode                         any
+	MenuBar                      *MenuBar
 	NormalMode                   *NormalMode
 	ZoomMode                     *ZoomMode
 	SaveFile                     string
@@ -1088,9 +1125,37 @@ func gameNotifierDraw(g *Game, bounds image.Rectangle) {
 	}
 }
 
+func decodePng(fname string) (image.Image, error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return nil, fmt.Errorf("open file: %v", err)
+	}
+	img, err := png.Decode(f)
+	if err != nil {
+		return nil, fmt.Errorf("decode png: %v", err)
+	}
+	return img, nil
+}
+
 func main() {
 	// get World from save data if exists
 	dirty := false
+	menuBar := &MenuBar{
+		Tiles: make([]*Tile, 0),
+	}
+	icons := []string{
+		"data/icon/self.png",
+		"data/icon/portal.png",
+	}
+	for _, fname := range icons {
+		icon, err := decodePng(fname)
+		if err != nil {
+			log.Fatalf("load icon: %v", err)
+		}
+		menuBar.Tiles = append(menuBar.Tiles, &Tile{
+			Image: ebiten.NewImageFromImage(icon),
+		})
+	}
 	normalMode := &NormalMode{
 		Dirty: &dirty,
 	}
@@ -1101,6 +1166,7 @@ func main() {
 	normalMode.WorldView.Camera.FollowMargin = 2
 	game := &Game{
 		Bounds:     image.Rect(0, 0, 640, 480),
+		MenuBar:    menuBar,
 		Mode:       normalMode,
 		NormalMode: normalMode,
 		ZoomMode: &ZoomMode{
@@ -1139,16 +1205,22 @@ func main() {
 						Tick:   normalModeTick,
 						Children: []*Widget{
 							&Widget{
+								Draw:   menuBarDraw,
+								Pin:    WidgetPinTopLeft,
+								Offset: image.Pt(10, 10),
+								Size:   image.Pt(12*tileSize, tileSize).Mul(2),
+							},
+							&Widget{
 								Update: worldViewUpdate,
 								Draw:   worldViewDraw,
 								Pin:    WidgetPinTopLeft,
-								Offset: image.Pt(10, 10),
+								Offset: image.Pt(10, tileSize*2+25),
 								Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
 							},
 							&Widget{
 								Draw:   activeTileLayersDraw,
 								Pin:    WidgetPinTopLeft,
-								Offset: image.Pt(12*tileSize, 0).Mul(2).Add(image.Pt(20, 10)),
+								Offset: image.Pt(12*tileSize, 0).Mul(2).Add(image.Pt(25, tileSize*2+25)),
 								Size:   image.Pt(tileSize, 8*tileSize).Mul(2),
 							},
 							&Widget{
