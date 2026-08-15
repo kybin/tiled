@@ -1144,6 +1144,7 @@ func main() {
 		Tiles: make([]*Tile, 0),
 	}
 	icons := []string{
+		"data/icon/map.png",
 		"data/icon/self.png",
 		"data/icon/portal.png",
 	}
