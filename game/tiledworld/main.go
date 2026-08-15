@@ -341,11 +341,14 @@ func (m *NormalMode) MakeTileUnique() {
 func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 	m := g.NormalMode
 	keys := inpututil.AppendPressedKeys(nil)
+	ctrl := false
 	alt := false
 	for _, k := range keys {
 		if k == ebiten.KeyAlt {
+			ctrl = true
+		}
+		if k == ebiten.KeyAlt {
 			alt = true
-			break
 		}
 	}
 	slotKeys := []ebiten.Key{
@@ -435,18 +438,35 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 			return UpdateHandled
 		}
 		if k == ebiten.KeyP {
-			r := m.WorldView.Camera.Rect()
-			screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
-			f, err := os.Create("screenshot.png")
+			if ctrl {
+				r := m.WorldView.Camera.Rect()
+				screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
+				f, err := os.Create("screenshot.png")
+				if err != nil {
+					log.Fatalf("create screenshot file: %v", err)
+				}
+				for p, t := range m.Layer().Map {
+					tmin := p.Mul(tileSize)
+					tmax := p.Add(image.Pt(1, 1)).Mul(tileSize)
+					draw.Draw(screenshot, image.Rect(tmin.X, tmin.Y, tmax.X, tmax.Y), t.Image, image.Pt(0, 0), draw.Src)
+				}
+				err = png.Encode(f, screenshot)
+				if err != nil {
+					log.Fatalf("png encode: %v", err)
+				}
+				return UpdateHandled
+			}
+			f, err := os.Create("tile.png")
 			if err != nil {
-				log.Fatalf("create screenshot file: %v", err)
+				log.Fatalf("create tile image: %v", err)
 			}
-			for p, t := range m.Layer().Map {
-				tmin := p.Mul(tileSize)
-				tmax := p.Add(image.Pt(1, 1)).Mul(tileSize)
-				draw.Draw(screenshot, image.Rect(tmin.X, tmin.Y, tmax.X, tmax.Y), t.Image, image.Pt(0, 0), draw.Src)
+			t := m.ActionTile()
+			b := image.Rect(0, 0, tileSize, tileSize)
+			tileImg := image.NewRGBA(b)
+			if t != nil {
+				draw.Draw(tileImg, b, t.Image, image.Pt(0, 0), draw.Src)
 			}
-			err = png.Encode(f, screenshot)
+			err = png.Encode(f, tileImg)
 			if err != nil {
 				log.Fatalf("png encode: %v", err)
 			}
