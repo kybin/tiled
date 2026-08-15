@@ -344,7 +344,7 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 	ctrl := false
 	alt := false
 	for _, k := range keys {
-		if k == ebiten.KeyAlt {
+		if k == ebiten.KeyControl {
 			ctrl = true
 		}
 		if k == ebiten.KeyAlt {
@@ -438,12 +438,20 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 			return UpdateHandled
 		}
 		if k == ebiten.KeyP {
+			err := os.Mkdir("screenshot", 0755)
+			if err != nil && !os.IsExist(err) {
+				return fmt.Errorf("make screenshot directory: %v", err)
+			}
+			root, err := os.OpenRoot("screenshot")
+			if err != nil {
+				return fmt.Errorf("open screenshot directory: %v", err)
+			}
 			if ctrl {
 				r := m.WorldView.Camera.Rect()
 				screenshot := image.NewRGBA(image.Rect(int(r.Min.X), int(r.Min.Y), int(r.Max.X)*tileSize, int(r.Max.Y)*tileSize))
-				f, err := os.Create("screenshot.png")
+				f, err := root.Create("camera.png")
 				if err != nil {
-					log.Fatalf("create screenshot file: %v", err)
+					return fmt.Errorf("create screenshot file: %v", err)
 				}
 				for p, t := range m.Layer().Map {
 					tmin := p.Mul(tileSize)
@@ -452,13 +460,13 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 				}
 				err = png.Encode(f, screenshot)
 				if err != nil {
-					log.Fatalf("png encode: %v", err)
+					return fmt.Errorf("png encode: %v", err)
 				}
 				return UpdateHandled
 			}
-			f, err := os.Create("tile.png")
+			f, err := root.Create("tile.png")
 			if err != nil {
-				log.Fatalf("create tile image: %v", err)
+				return fmt.Errorf("create tile image: %v", err)
 			}
 			t := m.ActionTile()
 			b := image.Rect(0, 0, tileSize, tileSize)
@@ -468,7 +476,7 @@ func normalModeUpdate(g *Game, bounds image.Rectangle) error {
 			}
 			err = png.Encode(f, tileImg)
 			if err != nil {
-				log.Fatalf("png encode: %v", err)
+				return fmt.Errorf("png encode: %v", err)
 			}
 			return UpdateHandled
 		}
