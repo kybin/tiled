@@ -14,6 +14,10 @@ func (p point) Add(q point) point {
 	return point{p.X + q.X, p.Y + q.Y}
 }
 
+func (p point) Sub(q point) point {
+	return point{p.X - q.X, p.Y - q.Y}
+}
+
 func (p point) Mul(a float64) point {
 	return point{p.X * a, p.Y * a}
 }

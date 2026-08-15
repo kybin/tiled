@@ -666,14 +666,29 @@ func activeTileLayersDraw(g *Game, bounds image.Rectangle) {
 	toScreen.Scale(2, 2)
 	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	for i, l := range m.World.Layers {
-		t := l.TileAt(m.Pos)
-		if t == nil {
-			continue
+		p := m.VisualPos()
+		// get top-left, and bottom-right corners
+		p1 := p.Sub(pt(-0.5, -0.5))
+		p2 := p.Add(pt(0.5, 0.5))
+		x1, y1 := int(math.Floor(p1.X)), int(math.Floor(p1.Y))
+		x2, y2 := int(math.Floor(p2.X)), int(math.Floor(p2.Y))
+		tps := []image.Point{
+			{X: x1, Y: y1},
+			{X: x2, Y: y1},
+			{X: x1, Y: y2},
+			{X: x2, Y: y2},
 		}
-		op := ebiten.DrawImageOptions{}
-		op.GeoM.Translate(0, float64((7-i)*tileSize))
-		op.GeoM.Concat(toScreen)
-		screen.DrawImage(t.Image, &op)
+		for _, tp := range tps {
+			t := l.TileAt(tp)
+			if t == nil {
+				continue
+			}
+			op := ebiten.DrawImageOptions{}
+			op.GeoM.Translate(0, float64((7-i)*tileSize))
+			op.GeoM.Translate((float64(x2)-p.X)*tileSize, (float64(y2)-p.Y)*tileSize)
+			op.GeoM.Concat(toScreen)
+			screen.DrawImage(t.Image, &op)
+		}
 	}
 	// draw cursor
 	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(bounds.Min.X, bounds.Min.Y))
