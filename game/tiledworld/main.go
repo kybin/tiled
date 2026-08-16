@@ -599,9 +599,29 @@ type MenuBar struct {
 	Idx   int
 }
 
+func menuBarUpdate(g *Game, bounds image.Rectangle) error {
+	m := g.MenuBar
+	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
+		m.Idx -= 1
+		if m.Idx < 0 {
+			m.Idx = 0
+		}
+		return UpdateHandled
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyRight) {
+		m.Idx += 1
+		if m.Idx >= len(m.Tiles) {
+			m.Idx = len(m.Tiles) - 1
+		}
+		return UpdateHandled
+	}
+	return nil
+}
+
 func menuBarDraw(g *Game, bounds image.Rectangle) {
+	m := g.MenuBar
 	outlineScreen := g.screen.SubImage(bounds.Inset(-2)).(*ebiten.Image)
-	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
+	c := color.RGBA{R: 192, G: 192, B: 192, A: 128}
 	drawOutline(outlineScreen, bounds.Inset(-2), 2, c)
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
@@ -613,6 +633,12 @@ func menuBarDraw(g *Game, bounds image.Rectangle) {
 		op.GeoM.Concat(toScreen)
 		screen.DrawImage(t.Image, &op)
 	}
+	if len(m.Tiles) == 0 {
+		return
+	}
+	b := image.Rect(m.Idx*tileSize*2, 0, (m.Idx+1)*tileSize*2, tileSize*2).Add(bounds.Min)
+	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
+	drawOutline(screen, b, 2, c)
 }
 
 // WorldView implements UpdateDrawer
@@ -1206,6 +1232,7 @@ func main() {
 						Tick:   normalModeTick,
 						Children: []*Widget{
 							&Widget{
+								Update: menuBarUpdate,
 								Draw:   menuBarDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(10, 10),
