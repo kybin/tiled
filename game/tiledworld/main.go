@@ -1225,19 +1225,19 @@ func main() {
 				Size: image.Pt(0, -32),
 				Children: []*Widget{
 					&Widget{
+						Update: menuBarUpdate,
+						Draw:   menuBarDraw,
+						Pin:    WidgetPinTopLeft,
+						Offset: image.Pt(10, 10),
+						Size:   image.Pt(12*tileSize, tileSize).Mul(2),
+					},
+					&Widget{
 						Block: func(g *Game) bool {
 							return g.Mode != g.NormalMode
 						},
 						Update: normalModeUpdate,
 						Tick:   normalModeTick,
 						Children: []*Widget{
-							&Widget{
-								Update: menuBarUpdate,
-								Draw:   menuBarDraw,
-								Pin:    WidgetPinTopLeft,
-								Offset: image.Pt(10, 10),
-								Size:   image.Pt(12*tileSize, tileSize).Mul(2),
-							},
 							&Widget{
 								Update: worldViewUpdate,
 								Draw:   worldViewDraw,
@@ -1273,8 +1273,9 @@ func main() {
 						Tick:   zoomModeTick,
 						Children: []*Widget{
 							&Widget{
-								Draw: zoomModePalleteDraw,
-								Pin:  WidgetPinTopLeft,
+								Draw:   zoomModePalleteDraw,
+								Pin:    WidgetPinTopLeft,
+								Offset: image.Pt(10, tileSize*2+25),
 							},
 							&Widget{
 								Draw: zoomModeTileDraw,
