@@ -26,8 +26,19 @@ type Widget struct {
 	// so it can draw on the game screen.
 	// If Draw is nil, the Widget will not draw on the screen.
 	Draw func(g *Game, bounds image.Rectangle)
+	// Parent is a parent Widget of this Widget.
+	Parent *Widget
 	// Children is child Widgets of this Widget.
 	Children []*Widget
+}
+
+// Build builds Widget hierarchy.
+// Some operations will not be run correctly before it.
+func (w *Widget) Build(parent *Widget) {
+	w.Parent = parent
+	for _, c := range w.Children {
+		c.Build(w)
+	}
 }
 
 func (w *Widget) UpdateRecursive(g *Game, bounds image.Rectangle) error {

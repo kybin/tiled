@@ -1291,6 +1291,7 @@ func main() {
 			},
 		},
 	}
+	game.Widget.Build(nil)
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Tiled World")
