@@ -11,6 +11,7 @@ type Widget struct {
 	Pin    WidgetPin
 	Offset image.Point
 	Size   image.Point
+	Focus  bool
 	// If Block returns true, the Widget and the chlidren should stop operate.
 	// If Block is nil, the Widget will always operate (if one of the ancestors didn't block).
 	Block func(g *Game) bool
@@ -38,6 +39,45 @@ func (w *Widget) Build(parent *Widget) {
 	w.Parent = parent
 	for _, c := range w.Children {
 		c.Build(w)
+	}
+}
+
+// SetFocus set focus on the Widget and it's ancesters.
+// Focus on all other widgets will be dismissed.
+func (w *Widget) SetFocus() {
+	// find root widget
+	var root *Widget
+	wg := w
+	for true {
+		if wg.Parent == nil {
+			root = wg
+			break
+		}
+		wg = wg.Parent
+	}
+	// dismiss all focus
+	root.FuncRecursive(func(w *Widget) {
+		w.Focus = false
+	})
+	wg = w
+	// set focus
+	for true {
+		wg.Focus = true
+		if wg.Parent == nil {
+			break
+		}
+		wg = wg.Parent
+	}
+}
+
+// FuncRecusive recusively run func f on the Widget and it's Children.
+func (w *Widget) FuncRecursive(f func(w *Widget)) {
+	if f == nil {
+		return
+	}
+	f(w)
+	for _, c := range w.Children {
+		c.FuncRecursive(f)
 	}
 }
 
