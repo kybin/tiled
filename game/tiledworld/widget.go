@@ -11,6 +11,8 @@ type Widget struct {
 	Pin    WidgetPin
 	Offset image.Point
 	Size   image.Point
+	// Bounds will be cacluated from Pin, Offset and Size.
+	Bounds image.Rectangle
 	Focus  bool
 	// If Block returns true, the Widget and the chlidren should stop operate.
 	// If Block is nil, the Widget will always operate (if one of the ancestors didn't block).
@@ -18,15 +20,15 @@ type Widget struct {
 	// Tick updates the status without any input.
 	// It will be run even if the Widget has blocked.
 	// World stop can prevent it to be run.
-	Tick func(g *Game, bounds image.Rectangle)
+	Tick func(g *Game, w *Widget)
 	// Update is a given function to the Widget,
 	// so it can handle inputs and update the game status.
 	// If Update is nil, the Widget will not update the game.
-	Update func(g *Game, bounds image.Rectangle) error
+	Update func(g *Game, w *Widget) error
 	// Draw is a given function to the Widget,
 	// so it can draw on the game screen.
 	// If Draw is nil, the Widget will not draw on the screen.
-	Draw func(g *Game, bounds image.Rectangle)
+	Draw func(g *Game, w *Widget)
 	// Parent is a parent Widget of this Widget.
 	Parent *Widget
 	// Children is child Widgets of this Widget.
@@ -84,20 +86,24 @@ func (w *Widget) FuncRecursive(f func(w *Widget)) {
 	}
 }
 
-func (w *Widget) UpdateRecursive(g *Game, bounds image.Rectangle) error {
+func (w *Widget) UpdateRecursive(g *Game) error {
 	if w.Block != nil && w.Block(g) {
 		// don't evaluate the branch
 		return nil
 	}
-	bounds = calcBounds(bounds, w.Pin, w.Offset, w.Size)
+	bounds := g.Bounds
+	if w.Parent != nil {
+		bounds = w.Parent.Bounds
+	}
+	w.Bounds = calcBounds(bounds, w.Pin, w.Offset, w.Size)
 	if w.Update != nil {
-		err := w.Update(g, bounds)
+		err := w.Update(g, w)
 		if err != nil {
 			return err
 		}
 	}
 	for _, c := range w.Children {
-		err := c.UpdateRecursive(g, bounds)
+		err := c.UpdateRecursive(g)
 		if err != nil {
 			return err
 		}
@@ -105,29 +111,28 @@ func (w *Widget) UpdateRecursive(g *Game, bounds image.Rectangle) error {
 	return nil
 }
 
-func (w *Widget) TickRecursive(g *Game, bounds image.Rectangle) {
+func (w *Widget) TickRecursive(g *Game) {
 	if g.worldStopped {
 		return
 	}
 	if w.Tick != nil {
-		w.Tick(g, bounds)
+		w.Tick(g, w)
 	}
 	for _, c := range w.Children {
-		c.TickRecursive(g, bounds)
+		c.TickRecursive(g)
 	}
 }
 
-func (w *Widget) DrawRecursive(g *Game, bounds image.Rectangle) {
+func (w *Widget) DrawRecursive(g *Game) {
 	if w.Block != nil && w.Block(g) {
 		// don't evaluate the branch
 		return
 	}
-	bounds = calcBounds(bounds, w.Pin, w.Offset, w.Size)
 	if w.Draw != nil {
-		w.Draw(g, bounds)
+		w.Draw(g, w)
 	}
 	for _, c := range w.Children {
-		c.DrawRecursive(g, bounds)
+		c.DrawRecursive(g)
 	}
 }
 
