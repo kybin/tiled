@@ -18,7 +18,7 @@ type Widget struct {
 	Focus  bool
 	// If Block returns true, the Widget and the chlidren should stop operate.
 	// If Block is nil, the Widget will always operate (if one of the ancestors didn't block).
-	Block func(g *Game) bool
+	Block func(g *Game, w *Widget) bool
 	// Tick updates the status without any input.
 	// It will be run even if the Widget has blocked.
 	// World stop can prevent it to be run.
@@ -118,7 +118,7 @@ func (w *Widget) FuncRecursive(f func(w *Widget)) {
 }
 
 func (w *Widget) UpdateRecursive(g *Game) error {
-	if w.Block != nil && w.Block(g) {
+	if w.Block != nil && w.Block(g, w) {
 		// don't evaluate the branch
 		return nil
 	}
@@ -155,7 +155,7 @@ func (w *Widget) TickRecursive(g *Game) {
 }
 
 func (w *Widget) DrawRecursive(g *Game) {
-	if w.Block != nil && w.Block(g) {
+	if w.Block != nil && w.Block(g, w) {
 		// don't evaluate the branch
 		return
 	}

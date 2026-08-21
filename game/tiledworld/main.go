@@ -1038,7 +1038,7 @@ func zoomModeTileDraw(g *Game, w *Widget) {
 }
 
 type Game struct {
-	Mode                         any
+	ModeWidget                   *Widget
 	MenuBar                      *MenuBar
 	NormalMode                   *NormalMode
 	ZoomMode                     *ZoomMode
@@ -1115,10 +1115,12 @@ func gameUpdate(g *Game, w *Widget) error {
 		return UpdateHandled
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
-		if g.Mode == g.NormalMode {
-			g.Mode = g.ZoomMode
+		normalModeWidget := g.Widget.Child("body/normal")
+		zoomModeWidget := g.Widget.Child("body/zoom")
+		if g.ModeWidget == normalModeWidget {
+			g.ModeWidget = zoomModeWidget
 		} else {
-			g.Mode = g.NormalMode
+			g.ModeWidget = normalModeWidget
 		}
 		return UpdateHandled
 	}
@@ -1194,7 +1196,6 @@ func main() {
 	game := &Game{
 		Bounds:     image.Rect(0, 0, 640, 480),
 		MenuBar:    menuBar,
-		Mode:       normalMode,
 		NormalMode: normalMode,
 		ZoomMode: &ZoomMode{
 			NormalMode: normalMode,
@@ -1235,8 +1236,8 @@ func main() {
 					},
 					&Widget{
 						Name: "normal",
-						Block: func(g *Game) bool {
-							return g.Mode != g.NormalMode
+						Block: func(g *Game, w *Widget) bool {
+							return g.ModeWidget != w
 						},
 						Update: normalModeUpdate,
 						Tick:   normalModeTick,
@@ -1274,8 +1275,8 @@ func main() {
 					},
 					&Widget{
 						Name: "zoom",
-						Block: func(g *Game) bool {
-							return g.Mode != g.ZoomMode
+						Block: func(g *Game, w *Widget) bool {
+							return g.ModeWidget != w
 						},
 						Update: zoomModeUpdate,
 						Tick:   zoomModeTick,
@@ -1304,6 +1305,7 @@ func main() {
 		},
 	}
 	game.Widget.Build(nil)
+	game.ModeWidget = game.Widget.Child("body/normal")
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Tiled World")
