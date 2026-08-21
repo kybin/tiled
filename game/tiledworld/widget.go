@@ -42,24 +42,27 @@ func (w *Widget) Build(parent *Widget) {
 	}
 }
 
-// SetFocus set focus on the Widget and it's ancesters.
-// Focus on all other widgets will be dismissed.
-func (w *Widget) SetFocus() {
-	// find root widget
-	var root *Widget
+// Root returns Root Widget of the tree Widget w is belong to.
+func (w *Widget) Root() *Widget {
 	wg := w
 	for true {
 		if wg.Parent == nil {
-			root = wg
+			return wg
 			break
 		}
 		wg = wg.Parent
 	}
+	return nil
+}
+
+// SetFocus set focus on the Widget and it's ancesters.
+// Focus on all other widgets will be dismissed.
+func (w *Widget) SetFocus() {
 	// dismiss all focus
-	root.FuncRecursive(func(w *Widget) {
+	w.Root().FuncRecursive(func(w *Widget) {
 		w.Focus = false
 	})
-	wg = w
+	wg := w
 	// set focus
 	for true {
 		wg.Focus = true
