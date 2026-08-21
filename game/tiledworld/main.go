@@ -339,6 +339,9 @@ func (m *NormalMode) MakeTileUnique() {
 }
 
 func normalModeUpdate(g *Game, w *Widget) error {
+	if g.FocusWidget != w {
+		return nil
+	}
 	m := g.NormalMode
 	keys := inpututil.AppendPressedKeys(nil)
 	ctrl := false
@@ -600,6 +603,9 @@ type MenuBar struct {
 }
 
 func menuBarUpdate(g *Game, w *Widget) error {
+	if g.FocusWidget != w {
+		return nil
+	}
 	m := g.MenuBar
 	if inpututil.IsKeyJustPressed(ebiten.KeyLeft) {
 		m.Idx -= 1
@@ -648,6 +654,9 @@ type WorldView struct {
 }
 
 func worldViewUpdate(g *Game, w *Widget) error {
+	if g.FocusWidget != g.Widget.Child("body/normal") {
+		return nil
+	}
 	v := g.NormalMode.WorldView
 	cx, cy := ebiten.CursorPosition()
 	if !image.Pt(cx, cy).In(w.Bounds) {
@@ -835,6 +844,9 @@ func (m *ZoomMode) MoveTo(dest image.Point) {
 }
 
 func zoomModeUpdate(g *Game, w *Widget) error {
+	if g.FocusWidget != w {
+		return nil
+	}
 	m := g.ZoomMode
 	keys := inpututil.AppendPressedKeys(nil)
 	alt := false
@@ -1039,6 +1051,7 @@ func zoomModeTileDraw(g *Game, w *Widget) {
 
 type Game struct {
 	ModeWidget                   *Widget
+	FocusWidget                  *Widget
 	MenuBar                      *MenuBar
 	NormalMode                   *NormalMode
 	ZoomMode                     *ZoomMode
@@ -1123,6 +1136,14 @@ func gameUpdate(g *Game, w *Widget) error {
 			g.ModeWidget = normalModeWidget
 		}
 		return UpdateHandled
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		menuWidget := g.Widget.Child("body/menu")
+		if g.FocusWidget == g.ModeWidget {
+			g.FocusWidget = menuWidget
+		} else {
+			g.FocusWidget = g.ModeWidget
+		}
 	}
 	return nil
 }
@@ -1306,6 +1327,7 @@ func main() {
 	}
 	game.Widget.Build(nil)
 	game.ModeWidget = game.Widget.Child("body/normal")
+	game.FocusWidget = game.Widget.Child("body/normal")
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Tiled World")
