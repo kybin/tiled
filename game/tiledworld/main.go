@@ -1221,10 +1221,12 @@ func main() {
 		Update: gameUpdate,
 		Children: []*Widget{
 			&Widget{
+				Name: "body",
 				Pin:  WidgetPinTop,
 				Size: image.Pt(0, -32),
 				Children: []*Widget{
 					&Widget{
+						Name:   "menu",
 						Update: menuBarUpdate,
 						Draw:   menuBarDraw,
 						Pin:    WidgetPinTopLeft,
@@ -1232,6 +1234,7 @@ func main() {
 						Size:   image.Pt(12*tileSize, tileSize).Mul(2),
 					},
 					&Widget{
+						Name: "normal",
 						Block: func(g *Game) bool {
 							return g.Mode != g.NormalMode
 						},
@@ -1239,6 +1242,7 @@ func main() {
 						Tick:   normalModeTick,
 						Children: []*Widget{
 							&Widget{
+								Name:   "world",
 								Update: worldViewUpdate,
 								Draw:   worldViewDraw,
 								Pin:    WidgetPinTopLeft,
@@ -1246,18 +1250,21 @@ func main() {
 								Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
 							},
 							&Widget{
+								Name:   "activetile",
 								Draw:   activeTileLayersDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(12*tileSize, 0).Mul(2).Add(image.Pt(25, tileSize*2+25)),
 								Size:   image.Pt(tileSize, 8*tileSize).Mul(2),
 							},
 							&Widget{
+								Name:   "analyzer",
 								Draw:   normalModeAnalyzerDraw,
 								Pin:    WidgetPinTopRight,
 								Offset: image.Pt(-10, 10),
 								Size:   image.Pt(200, 200),
 							},
 							&Widget{
+								Name:   "slots",
 								Draw:   normalModeSlotsDraw,
 								Pin:    WidgetPinBottom,
 								Offset: image.Pt(0, -10),
@@ -1266,6 +1273,7 @@ func main() {
 						},
 					},
 					&Widget{
+						Name: "zoom",
 						Block: func(g *Game) bool {
 							return g.Mode != g.ZoomMode
 						},
@@ -1273,11 +1281,13 @@ func main() {
 						Tick:   zoomModeTick,
 						Children: []*Widget{
 							&Widget{
+								Name:   "pallete",
 								Draw:   zoomModePalleteDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(10, tileSize*2+25),
 							},
 							&Widget{
+								Name: "tile",
 								Draw: zoomModeTileDraw,
 								Pin:  WidgetPinCenter,
 								Size: image.Pt(zoomScale*tileSize, zoomScale*tileSize).Mul(2).Add(image.Pt(2, 2)),
@@ -1286,6 +1296,7 @@ func main() {
 					},
 				},
 			}, &Widget{
+				Name: "notifier",
 				Draw: gameNotifierDraw,
 				Pin:  WidgetPinBottom,
 				Size: image.Pt(0, 32),

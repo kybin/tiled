@@ -3,11 +3,13 @@ package main
 import (
 	"errors"
 	"image"
+	"strings"
 )
 
 var UpdateHandled error = errors.New("update handled")
 
 type Widget struct {
+	Name   string
 	Pin    WidgetPin
 	Offset image.Point
 	Size   image.Point
@@ -53,6 +55,35 @@ func (w *Widget) Root() *Widget {
 			break
 		}
 		wg = wg.Parent
+	}
+	return nil
+}
+
+// Child return a child where pth is directing.
+// It doesn't need to be a direct child.
+func (w *Widget) Child(pth string) *Widget {
+	wg := w
+	if pth == "" {
+		return nil
+	}
+	toks := strings.Split(pth, "/")
+	for true {
+		if len(toks) == 0 {
+			return wg
+		}
+		tok := toks[0]
+		toks = toks[1:]
+		var find *Widget
+		for _, c := range wg.Children {
+			if c.Name == tok {
+				find = c
+				break
+			}
+		}
+		if find == nil {
+			return nil
+		}
+		wg = find
 	}
 	return nil
 }
