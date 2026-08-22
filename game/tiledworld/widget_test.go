@@ -31,6 +31,24 @@ func TestCalcBounds(t *testing.T) {
 			size:         image.Pt(-100, -100),
 			want:         image.Rect(100, 100, 640, 480),
 		},
+		{
+			parentBounds: image.Rect(0, 120, 640, 480),
+			pin:          WidgetPinBottom,
+			size:         image.Pt(0, 100),
+			want:         image.Rect(0, 380, 640, 480),
+		},
+		{
+			parentBounds: image.Rect(0, 120, 640, 240),
+			pin:          WidgetPinBottom,
+			size:         image.Pt(0, 100),
+			want:         image.Rect(0, 140, 640, 240),
+		},
+		{
+			parentBounds: image.Rect(0, 180, 640, 240),
+			pin:          WidgetPinBottom,
+			size:         image.Pt(0, 100),
+			want:         image.Rect(0, 180, 640, 240),
+		},
 	}
 	for _, c := range cases {
 		got := calcBounds(c.parentBounds, c.pin, c.off, c.size)

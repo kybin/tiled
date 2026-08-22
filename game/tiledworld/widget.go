@@ -175,11 +175,12 @@ func calcBounds(parentBounds image.Rectangle, pin WidgetPin, off, size image.Poi
 		size.Y = max(parentBounds.Size().Y+size.Y, 0)
 	}
 	toEnd := image.Point{
-		(parentBounds.Size().X - size.X),
-		(parentBounds.Size().Y - size.Y),
+		parentBounds.Size().X - size.X,
+		parentBounds.Size().Y - size.Y,
 	}
 	toCenter := toEnd.Div(2)
 	b := image.Rect(0, 0, size.X, size.Y)
+	b = b.Add(parentBounds.Min)
 	dir := pinDirection(pin)
 	switch dir.X {
 	case 0:
