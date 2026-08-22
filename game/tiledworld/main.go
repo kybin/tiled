@@ -645,6 +645,10 @@ func menuBarDraw(g *Game, w *Widget) {
 	b := image.Rect(m.Idx*tileSize*2, 0, (m.Idx+1)*tileSize*2, tileSize*2).Add(bounds.Min)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(screen, b, 2, c)
+
+	if g.FocusWidget != g.MenuBarWidget {
+		shadeImage(screen, color.RGBA{A: 128})
+	}
 }
 
 // WorldView implements UpdateDrawer
@@ -754,6 +758,10 @@ func worldViewDraw(g *Game, w *Widget) {
 		op.GeoM.Concat(toScreen)
 		screen.DrawImage(cursorImage, &op)
 	}
+
+	if g.FocusWidget != g.ModeWidget {
+		shadeImage(screen, color.RGBA{A: 128})
+	}
 }
 
 func activeTileLayersDraw(g *Game, w *Widget) {
@@ -794,6 +802,10 @@ func activeTileLayersDraw(g *Game, w *Widget) {
 	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(bounds.Min.X, bounds.Min.Y))
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(screen, cursorBounds, 2, c)
+
+	if g.FocusWidget != g.ModeWidget {
+		shadeImage(screen, color.RGBA{A: 128})
+	}
 }
 
 type ZoomMode struct {
@@ -1051,6 +1063,7 @@ func zoomModeTileDraw(g *Game, w *Widget) {
 }
 
 type Game struct {
+	MenuBarWidget                *Widget
 	ModeWidget                   *Widget
 	FocusWidget                  *Widget
 	MenuBar                      *MenuBar
@@ -1327,8 +1340,9 @@ func main() {
 		},
 	}
 	game.Widget.Build(nil)
+	game.MenuBarWidget = game.Widget.Child("body/menu")
 	game.ModeWidget = game.Widget.Child("body/normal")
-	game.FocusWidget = game.Widget.Child("body/normal")
+	game.FocusWidget = game.ModeWidget
 	ebiten.SetWindowSize(640, 480)
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle("Tiled World")

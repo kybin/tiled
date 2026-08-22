@@ -27,3 +27,15 @@ func drawOutline(img *ebiten.Image, b image.Rectangle, width float64, c color.Co
 	op.GeoM.Translate(0, float64(s.Y)-width)
 	img.DrawImage(outline, op)
 }
+
+func shadeImage(img *ebiten.Image, c color.Color) {
+	sz := img.Bounds().Size()
+	if sz.X == 0 || sz.Y == 0 {
+		return
+	}
+	shd := ebiten.NewImage(sz.X, sz.Y)
+	shd.Fill(c)
+	op := ebiten.DrawImageOptions{}
+	op.GeoM.Translate(float64(img.Bounds().Min.X), float64(img.Bounds().Min.Y))
+	img.DrawImage(shd, &op)
+}
