@@ -626,13 +626,13 @@ func menuBarUpdate(g *Game, w *Widget) error {
 
 func menuBarDraw(g *Game, w *Widget) {
 	m := g.MenuBar
-	outlineScreen := g.screen.SubImage(w.Bounds.Inset(-2)).(*ebiten.Image)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 128}
-	drawOutline(outlineScreen, w.Bounds.Inset(-2), 2, c)
-	screen := g.screen.SubImage(w.Bounds).(*ebiten.Image)
+	drawOutline(g.screen, w.Bounds, 2, c)
+	bounds := w.Bounds.Inset(2)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
-	toScreen.Translate(float64(w.Bounds.Min.X), float64(w.Bounds.Min.Y))
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	for i, t := range g.MenuBar.Tiles {
 		op := ebiten.DrawImageOptions{}
 		op.GeoM.Translate(float64(i)*tileSize, 0)
@@ -642,7 +642,7 @@ func menuBarDraw(g *Game, w *Widget) {
 	if len(m.Tiles) == 0 {
 		return
 	}
-	b := image.Rect(m.Idx*tileSize*2, 0, (m.Idx+1)*tileSize*2, tileSize*2).Add(w.Bounds.Min)
+	b := image.Rect(m.Idx*tileSize*2, 0, (m.Idx+1)*tileSize*2, tileSize*2).Add(bounds.Min)
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(screen, b, 2, c)
 }
@@ -659,10 +659,11 @@ func worldViewUpdate(g *Game, w *Widget) error {
 	}
 	v := g.NormalMode.WorldView
 	cx, cy := ebiten.CursorPosition()
-	if !image.Pt(cx, cy).In(w.Bounds) {
+	bounds := w.Bounds.Inset(2)
+	if !image.Pt(cx, cy).In(bounds) {
 		v.cursorPos = nil
 	} else {
-		relP := image.Pt(cx, cy).Sub(w.Bounds.Min)
+		relP := image.Pt(cx, cy).Sub(bounds.Min)
 		rx := relP.X / tileSize / 2
 		ry := relP.Y / tileSize / 2
 		v.cursorPos = &image.Point{X: int(rx) + int(math.Round(v.Camera.Origin.X)), Y: int(ry) + int(math.Round(v.Camera.Origin.Y))}
@@ -677,13 +678,13 @@ func worldViewUpdate(g *Game, w *Widget) error {
 func worldViewDraw(g *Game, w *Widget) {
 	v := g.NormalMode.WorldView
 	m := g.NormalMode
-	outlineScreen := g.screen.SubImage(w.Bounds.Inset(-2)).(*ebiten.Image)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(outlineScreen, w.Bounds.Inset(-2), 2, c)
-	screen := g.screen.SubImage(w.Bounds).(*ebiten.Image)
+	drawOutline(g.screen, w.Bounds, 2, c)
+	bounds := w.Bounds.Inset(2)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
-	toScreen.Translate(float64(w.Bounds.Min.X), float64(w.Bounds.Min.Y))
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	camRect := v.Camera.Rect()
 	var layers []*Layer
 	if m.ExclusiveMode {
@@ -757,13 +758,13 @@ func worldViewDraw(g *Game, w *Widget) {
 
 func activeTileLayersDraw(g *Game, w *Widget) {
 	m := g.NormalMode
-	outlineScreen := g.screen.SubImage(w.Bounds.Inset(-2)).(*ebiten.Image)
 	c := color.RGBA{R: 192, G: 192, B: 192, A: 255}
-	drawOutline(outlineScreen, w.Bounds.Inset(-2), 2, c)
-	screen := g.screen.SubImage(w.Bounds).(*ebiten.Image)
+	drawOutline(g.screen, w.Bounds, 2, c)
+	bounds := w.Bounds.Inset(2)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
-	toScreen.Translate(float64(w.Bounds.Min.X), float64(w.Bounds.Min.Y))
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 	for i, l := range m.World.Layers {
 		p := m.VisualPos()
 		// get top-left, and bottom-right corners
@@ -790,7 +791,7 @@ func activeTileLayersDraw(g *Game, w *Widget) {
 		}
 	}
 	// draw cursor
-	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(w.Bounds.Min.X, w.Bounds.Min.Y))
+	cursorBounds := image.Rect(0, 0, tileSize*2, tileSize*2).Add(image.Pt(0, (7-m.CurLayer)*tileSize*2)).Add(image.Pt(bounds.Min.X, bounds.Min.Y))
 	c = color.RGBA{R: 192, G: 192, B: 64, A: 128}
 	drawOutline(screen, cursorBounds, 2, c)
 }
@@ -1253,7 +1254,7 @@ func main() {
 						Draw:   menuBarDraw,
 						Pin:    WidgetPinTopLeft,
 						Offset: image.Pt(10, 10),
-						Size:   image.Pt(12*tileSize, tileSize).Mul(2),
+						Size:   image.Pt(12*tileSize, tileSize).Mul(2).Add(image.Pt(4, 4)),
 					},
 					&Widget{
 						Name: "normal",
@@ -1269,14 +1270,14 @@ func main() {
 								Draw:   worldViewDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(10, tileSize*2+25),
-								Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2),
+								Size:   image.Pt(12*tileSize, 8*tileSize).Mul(2).Add(image.Pt(4, 4)),
 							},
 							&Widget{
 								Name:   "activetile",
 								Draw:   activeTileLayersDraw,
 								Pin:    WidgetPinTopLeft,
 								Offset: image.Pt(12*tileSize, 0).Mul(2).Add(image.Pt(25, tileSize*2+25)),
-								Size:   image.Pt(tileSize, 8*tileSize).Mul(2),
+								Size:   image.Pt(tileSize, 8*tileSize).Mul(2).Add(image.Pt(4, 4)),
 							},
 							&Widget{
 								Name:   "analyzer",
