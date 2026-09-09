@@ -1026,15 +1026,18 @@ func zoomModePalleteDraw(g *Game, w *Widget) {
 	op.GeoM.Translate(0, 64)
 	op.GeoM.Concat(toScreen)
 	screen.DrawImage(colorPicker, &op)
+	if g.FocusWidget != g.ModeWidget {
+		shadeImage(screen, color.RGBA{A: 128})
+	}
 }
 
 func zoomModeTileDraw(g *Game, w *Widget) {
 	m := g.ZoomMode
-	screen := g.screen.SubImage(w.Bounds).(*ebiten.Image)
+	bounds := w.Bounds.Inset(2)
+	screen := g.screen.SubImage(bounds).(*ebiten.Image)
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
-	toScreen.Translate(float64(w.Bounds.Min.X), float64(w.Bounds.Min.Y))
-	toScreen.Translate(1, 1) // shift for outline
+	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
 
 	// draw zoomed tile pixels
 	tile := g.NormalMode.ActionTile()
@@ -1059,7 +1062,10 @@ func zoomModeTileDraw(g *Game, w *Widget) {
 	screen.DrawImage(cursorImage, &op)
 
 	// draw outline of zoomed tile
-	drawOutline(screen, w.Bounds, 1, color.White)
+	drawOutline(g.screen, w.Bounds, 2, color.White)
+	if g.FocusWidget != g.ModeWidget {
+		shadeImage(screen, color.RGBA{A: 128})
+	}
 }
 
 type Game struct {
@@ -1149,6 +1155,7 @@ func gameUpdate(g *Game, w *Widget) error {
 		} else {
 			g.ModeWidget = normalModeWidget
 		}
+		g.FocusWidget = g.ModeWidget
 		return UpdateHandled
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
@@ -1326,7 +1333,7 @@ func main() {
 								Name: "tile",
 								Draw: zoomModeTileDraw,
 								Pin:  WidgetPinCenter,
-								Size: image.Pt(zoomScale*tileSize, zoomScale*tileSize).Mul(2).Add(image.Pt(2, 2)),
+								Size: image.Pt(zoomScale*tileSize, zoomScale*tileSize).Mul(2).Add(image.Pt(4, 4)),
 							},
 						},
 					},
