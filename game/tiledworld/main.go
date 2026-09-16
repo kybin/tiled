@@ -55,12 +55,17 @@ type WorldData struct {
 }
 
 type World struct {
-	Layers []*Layer
+	// World bounds in tile unit.
 	Camera *Camera
+	// Size defines world size, world is infinite in direction where size is zero.
+	// eg) Size.X = 0 means x direction of the world is infinite.
+	Size   image.Point
+	Layers []*Layer
 }
 
-func NewWorld() *World {
+func NewWorld(size image.Point) *World {
 	w := &World{
+		Size:   size,
 		Layers: []*Layer{NewLayer()},
 	}
 	return w
@@ -370,6 +375,14 @@ func normalModeUpdate(g *Game, w *Widget) error {
 			}
 		}
 	}
+	if m.World.Size.X != 0 {
+		dest.X = min(dest.X, m.World.Size.X-1)
+		dest.X = max(dest.X, 0)
+	}
+	if m.World.Size.Y != 0 {
+		dest.Y = min(dest.Y, m.World.Size.Y-1)
+		dest.Y = max(dest.Y, 0)
+	}
 	// move doesn't comsume update
 	m.MoveTo(dest)
 	// handle other operations
@@ -661,9 +674,29 @@ func worldViewUpdate(g *Game, w *Widget) error {
 	if g.FocusWidget != g.Widget.Child("body/normal") {
 		return nil
 	}
+	m := g.NormalMode
 	v := g.NormalMode.WorldView
 	cx, cy := ebiten.CursorPosition()
 	bounds := w.Bounds.Inset(2)
+	camSize := image.Point{}
+	camOff := image.Point{}
+	if m.World.Size.X != 0 {
+		camSize.X = m.World.Size.X * tileSize * 2
+		camOff.X = max(0, bounds.Size().X-camSize.X) / 2
+	}
+	if m.World.Size.Y != 0 {
+		camSize.Y = m.World.Size.Y * tileSize * 2
+		camOff.Y = max(0, bounds.Size().Y-camSize.Y) / 2
+	}
+	if camOff.X > 0 {
+		bounds.Max.X = bounds.Min.X + camSize.X
+	}
+	if camOff.X > 0 {
+		bounds.Max.Y = bounds.Min.Y + camSize.Y
+	}
+	if camOff.X > 0 || camOff.Y > 0 {
+		bounds = bounds.Add(camOff)
+	}
 	if !image.Pt(cx, cy).In(bounds) {
 		v.cursorPos = nil
 	} else {
@@ -686,6 +719,27 @@ func worldViewDraw(g *Game, w *Widget) {
 	drawOutline(g.screen, w.Bounds, 2, c)
 	bounds := w.Bounds.Inset(2)
 	screen := g.screen.SubImage(bounds).(*ebiten.Image)
+	camSize := image.Point{}
+	camOff := image.Point{}
+	if m.World.Size.X != 0 {
+		camSize.X = m.World.Size.X * tileSize * 2
+		camOff.X = max(0, bounds.Size().X-camSize.X) / 2
+	}
+	if m.World.Size.Y != 0 {
+		camSize.Y = m.World.Size.Y * tileSize * 2
+		camOff.Y = max(0, bounds.Size().Y-camSize.Y) / 2
+	}
+	// camera bounded by World
+	if camOff.X > 0 {
+		bounds.Max.X = bounds.Min.X + camSize.X
+	}
+	if camOff.X > 0 {
+		bounds.Max.Y = bounds.Min.Y + camSize.Y
+	}
+	if camOff.X > 0 || camOff.Y > 0 {
+		bounds = bounds.Add(camOff)
+		drawOutline(g.screen, bounds, 2, color.RGBA{R: 128, G: 128, B: 128, A: 255})
+	}
 	toScreen := ebiten.GeoM{}
 	toScreen.Scale(2, 2)
 	toScreen.Translate(float64(bounds.Min.X), float64(bounds.Min.Y))
@@ -1244,14 +1298,14 @@ func main() {
 		Camera: NewCamera(pt(0, 0), pt(12, 8)),
 	}
 	worldMode.WorldView.Camera.FollowMargin = 2
-	worldMode.World = NewWorld()
+	worldMode.World = NewWorld(image.Point{})
 	charMode := &NormalMode{
 		Dirty: &dirty,
 	}
 	charMode.WorldView = &WorldView{
 		Camera: NewCamera(pt(0, 0), pt(2, 2)),
 	}
-	charMode.World = NewWorld()
+	charMode.World = NewWorld(image.Pt(2, 2))
 	game := &Game{
 		Bounds:     image.Rect(0, 0, 640, 480),
 		MenuBar:    menuBar,
