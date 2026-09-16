@@ -1074,6 +1074,8 @@ type Game struct {
 	FocusWidget                  *Widget
 	MenuBar                      *MenuBar
 	NormalMode                   *NormalMode
+	WorldMode                    *NormalMode
+	CharMode                     *NormalMode
 	ZoomMode                     *ZoomMode
 	SaveFile                     string
 	Dirty                        *bool
@@ -1108,7 +1110,7 @@ func (g *Game) save() {
 	if err == nil {
 		enc := gob.NewEncoder(f)
 		data := &SaveData{
-			WorldData: g.NormalMode.World.ToData(),
+			WorldData: g.WorldMode.World.ToData(),
 		}
 		if err := enc.Encode(data); err != nil {
 			log.Fatalf("save data: %v", err)
@@ -1145,6 +1147,14 @@ func gameUpdate(g *Game, w *Widget) error {
 	if ctrl && inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		g.save()
 		*g.Dirty = false
+		return UpdateHandled
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		if g.NormalMode == g.WorldMode {
+			g.NormalMode = g.CharMode
+			return UpdateHandled
+		}
+		g.NormalMode = g.WorldMode
 		return UpdateHandled
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
@@ -1227,27 +1237,35 @@ func main() {
 			Image: ebiten.NewImageFromImage(icon),
 		})
 	}
-	normalMode := &NormalMode{
+	worldMode := &NormalMode{
 		Dirty: &dirty,
 	}
-	camBound := rect(0, 0, 12, 8)
-	normalMode.WorldView = &WorldView{
-		Camera: NewCamera(camBound.Min, camBound.Max),
+	worldMode.WorldView = &WorldView{
+		Camera: NewCamera(pt(0, 0), pt(12, 8)),
 	}
-	normalMode.WorldView.Camera.FollowMargin = 2
+	worldMode.WorldView.Camera.FollowMargin = 2
+	worldMode.World = NewWorld()
+	charMode := &NormalMode{
+		Dirty: &dirty,
+	}
+	charMode.WorldView = &WorldView{
+		Camera: NewCamera(pt(0, 0), pt(2, 2)),
+	}
+	charMode.World = NewWorld()
 	game := &Game{
 		Bounds:     image.Rect(0, 0, 640, 480),
 		MenuBar:    menuBar,
-		NormalMode: normalMode,
+		NormalMode: worldMode,
+		WorldMode:  worldMode,
+		CharMode:   charMode,
 		ZoomMode: &ZoomMode{
-			NormalMode: normalMode,
+			NormalMode: worldMode,
 			Saturation: 255,
 			Lightness:  128,
 			Dirty:      &dirty,
 		},
 		Dirty: &dirty,
 	}
-	game.NormalMode.World = NewWorld()
 	gob.Register(SaveData{})
 	saved := &SaveData{}
 	f, err := os.Open("save")
@@ -1258,7 +1276,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("load data: %v", err)
 		}
-		game.NormalMode.World.FromData(saved.WorldData)
+		game.WorldMode.World.FromData(saved.WorldData)
 	}
 	game.Widget = &Widget{
 		Update: gameUpdate,
