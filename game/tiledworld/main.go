@@ -47,6 +47,7 @@ type Point3 struct {
 
 type SaveData struct {
 	WorldData *WorldData
+	CharData  *WorldData
 }
 
 type WorldData struct {
@@ -119,6 +120,9 @@ func (w *World) ToData() *WorldData {
 }
 
 func (w *World) FromData(d *WorldData) {
+	if d == nil {
+		return
+	}
 	getTile := make(map[int]*Tile)
 	for p3, id := range d.Map {
 		for len(w.Layers)-1 < p3.Z {
@@ -219,9 +223,10 @@ func keyDirection(k ebiten.Key) image.Point {
 }
 
 type Mover struct {
-	Pos    image.Point
-	OldPos image.Point
-	steps  int
+	Pos       image.Point
+	OldPos    image.Point
+	Direction image.Point
+	steps     int
 }
 
 func (m *Mover) MoveTo(p image.Point) {
@@ -230,6 +235,21 @@ func (m *Mover) MoveTo(p image.Point) {
 	}
 	m.OldPos = m.Pos
 	m.Pos = p
+	if m.Pos == m.OldPos {
+		return
+	}
+	dir := m.Pos.Sub(m.OldPos)
+	if dir.X > 1 {
+		dir.X = 1
+	} else if dir.X < -1 {
+		dir.X = -1
+	}
+	if dir.Y > 1 {
+		dir.Y = 1
+	} else if dir.Y < -1 {
+		dir.Y = -1
+	}
+	m.Direction = dir
 }
 
 func (m *Mover) Step() {
@@ -257,6 +277,7 @@ type NormalMode struct {
 	World         *World
 	WorldView     *WorldView
 	CurLayer      int
+	Playing       bool
 	ExclusiveMode bool
 	copyTilePos   image.Point
 	PosSlots      [5]*image.Point
@@ -774,6 +795,36 @@ func worldViewDraw(g *Game, w *Widget) {
 	op.GeoM.Translate(float64(vp.X-camRect.Min.X)*tileSize, float64(vp.Y-camRect.Min.Y)*tileSize)
 	op.GeoM.Concat(toScreen)
 	screen.DrawImage(cursorImage, &op)
+	if m.Playing {
+		// (0, 0): down, (1, 0): up
+		// (0, 1): left, (1, 1): right
+		imgPos := image.Pt(0, 0)
+		if m.Direction.Y > 0 {
+			imgPos = image.Pt(0, 0)
+		} else if m.Direction.Y < 0 {
+			imgPos = image.Pt(1, 0)
+		}
+		if m.Direction.X > 0 {
+			imgPos = image.Pt(0, 1)
+		} else if m.Direction.X < 0 {
+			imgPos = image.Pt(1, 1)
+		}
+		drawOverOp := ebiten.DrawImageOptions{
+			Blend: ebiten.BlendSourceOver,
+		}
+		charImg := ebiten.NewImage(tileSize, tileSize)
+		for _, l := range g.CharMode.World.Layers {
+			tile, ok := l.Map[image.Pt(imgPos.X, imgPos.Y)]
+			if !ok {
+				continue
+			}
+			charImg.DrawImage(tile.Image, &drawOverOp)
+		}
+		drawAtCursorOp := drawOverOp
+		drawAtCursorOp.GeoM.Translate(float64(vp.X-camRect.Min.X)*tileSize, float64(vp.Y-camRect.Min.Y)*tileSize)
+		drawAtCursorOp.GeoM.Concat(toScreen)
+		screen.DrawImage(charImg, &drawAtCursorOp)
+	}
 	// draw hover cursor
 	if v.cursorPos != nil {
 		cursorImage := ebiten.NewImage(tileSize, tileSize)
@@ -1165,6 +1216,7 @@ func (g *Game) save() {
 		enc := gob.NewEncoder(f)
 		data := &SaveData{
 			WorldData: g.WorldMode.World.ToData(),
+			CharData:  g.CharMode.World.ToData(),
 		}
 		if err := enc.Encode(data); err != nil {
 			log.Fatalf("save data: %v", err)
@@ -1292,7 +1344,8 @@ func main() {
 		})
 	}
 	worldMode := &NormalMode{
-		Dirty: &dirty,
+		Dirty:   &dirty,
+		Playing: true,
 	}
 	worldMode.WorldView = &WorldView{
 		Camera: NewCamera(pt(0, 0), pt(12, 8)),
@@ -1331,6 +1384,7 @@ func main() {
 			log.Fatalf("load data: %v", err)
 		}
 		game.WorldMode.World.FromData(saved.WorldData)
+		game.CharMode.World.FromData(saved.CharData)
 	}
 	game.Widget = &Widget{
 		Update: gameUpdate,
